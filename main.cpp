@@ -15,6 +15,7 @@ const std::string Font = "Cascadia Mono SemiBold";
 HWND g_workerW;
 std::string g_path;
 HDC g_hdc;
+bool g_loop;
 
 bool setWorkerW()
 {
@@ -74,7 +75,7 @@ void clearScreen()
     DeleteObject(brush);
 }
 
-void drawText(int x, int y, const COLORREF color, const std::string text)
+void drawText(const int x, const int y, const COLORREF color, const std::string text)
 {
     // 文字の後ろは塗りつぶさない
     SetBkMode(g_hdc, TRANSPARENT);
@@ -84,24 +85,23 @@ void drawText(int x, int y, const COLORREF color, const std::string text)
     TextOut(g_hdc, x, y, text.c_str(), strlen(text.c_str()));
 }
 
-int main()
+bool initialize()
 {
     bool result = setWorkerW();
     std::cout << "WorkerW: ";
     if (!result)
     {
         std::cout << "Error" << std::endl;
-        return EXIT_FAILURE;
+        return false;
     }
     std::cout << "0x" << std::hex << g_workerW << std::endl;
-
 
     result = getWallpaper();
     std::cout << "Wallpaper: ";
     if (!result)
     {
         std::cout << "Error" << std::endl;
-        return EXIT_FAILURE;
+        return false;
     }
     std::cout << g_path << std::endl;
 
@@ -112,27 +112,50 @@ int main()
     if (!result)
     {
         std::cout << "Error" << std::endl;
-        return EXIT_FAILURE;
+        return false;
     }
     std::cout << Font << std::endl;
 
-    //auto handler = [](DWORD event) -> BOOL
-    //{
-    //    if (event == CTRL_CLOSE_EVENT)
-    //    {
-    //        ReleaseDC(g_workerW, g_hdc);
-    //        setWallpaper(g_path);
-    //        return TRUE;
-    //    }
-    //    return FALSE;
-    //};
+    return true;
+}
 
-    //// コンソールクローズイベントハンドラの設定
-    //if (!SetConsoleCtrlHandler((PHANDLER_ROUTINE)handler, TRUE))
-    //{
-    //    std::cerr << "Error: Could not set control handler." << std::endl;
-    //    return 1;
-    //}
+bool finalize()
+{
+    ReleaseDC(g_workerW, g_hdc);
+
+    bool result = setWallpaper(g_path);
+    std::cout << "Wallpaper: ";
+    if (!result)
+    {
+        std::cout << "Error" << std::endl;
+        return false;
+    }
+    std::cout << "Reset" << std::endl;
+
+    return true;
+}
+
+int main()
+{
+    if (!initialize()) return EXIT_FAILURE;
+
+    auto handler = [](DWORD event) -> BOOL
+    {
+        switch (event)
+        {
+            case CTRL_CLOSE_EVENT:
+                return TRUE;
+            default:
+                return FALSE;
+        }
+    };
+
+    // コンソールクローズイベントハンドラの設定
+    if (!SetConsoleCtrlHandler((PHANDLER_ROUTINE)handler, TRUE))
+    {
+        std::cerr << "Error: Could not set control handler." << std::endl;
+        return 1;
+    }
 
     clearScreen();
     for (int y = 0; y < MaxRow; y++)
@@ -145,8 +168,7 @@ int main()
 
     std::cin.get();
 
-    ReleaseDC(g_workerW, g_hdc);
-    setWallpaper(g_path);
+    if (!finalize()) return EXIT_FAILURE;
 
     return EXIT_SUCCESS;
 }
