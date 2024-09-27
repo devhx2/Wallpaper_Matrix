@@ -151,7 +151,6 @@ bool Screen::setFont()
     return true;
 }
 
-
 void Screen::writeText(const int x, const int y, const Color color, const std::string text) const
 {
     // •¶Žš‚ÌŒã‚ë‚Í“h‚è‚Â‚Ô‚³‚È‚¢

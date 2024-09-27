@@ -37,6 +37,5 @@ private:
     bool getWallpaper();
     bool setWallpaper(const std::string path);
     bool setFont();
-
     void writeText(const int x, const int y, const Color color, const std::string text) const;
 };
