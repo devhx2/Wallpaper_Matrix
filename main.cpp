@@ -4,10 +4,12 @@
 #include <iostream>
 #include <string>
 
-constexpr int Width = 1920;
-constexpr int Height = 1080;
+constexpr int ScreenWidth = 1920;
+constexpr int ScreenHeight = 1080;
 constexpr COLORREF Black = RGB(0, 0, 0);
 constexpr COLORREF Green = RGB(19, 161, 14);
+constexpr int MaxColumn = 96;
+constexpr int MaxRow = 54;
 
 HWND getWorkerW()
 {
@@ -74,7 +76,7 @@ void drawBack(const HDC hdc)
     const HBRUSH brush = CreateSolidBrush(Black);
     const HBRUSH old = (HBRUSH)SelectObject(hdc, brush);
 
-    PatBlt(hdc, 0, 0, Width, Height, PATCOPY);
+    PatBlt(hdc, 0, 0, ScreenWidth, ScreenHeight, PATCOPY);
 
     SelectObject(hdc, old);
     DeleteObject(brush);
@@ -100,20 +102,23 @@ int main()
 
     const HDC hdc = GetDC(workerW);
     const HDC back = CreateCompatibleDC(hdc);
-    const HBITMAP bitmap = CreateCompatibleBitmap(hdc, Width, Height);
+    const HBITMAP bitmap = CreateCompatibleBitmap(hdc, ScreenWidth, ScreenHeight);
 
     SelectObject(back, bitmap);
     SelectObject(back, GetStockObject(DC_BRUSH));
 
     setFont(hdc);
 
-    for (int i = 0; i < 5; i++)
+    drawBack(hdc);
+    for (int y = 0; y < MaxRow; y++)
     {
-        drawBack(hdc);
-        drawText(hdc, 0, 20 * i, Green, "Text");
-
-        std::cin.get();
+        for (int x = 0; x < MaxColumn; x++)
+        {
+            drawText(hdc, 5 + (10 + 10) * x, 20 * y, Green, "q");
+        }
     }
+
+    std::cin.get();
 
     DeleteDC(back);
     DeleteObject(back);
