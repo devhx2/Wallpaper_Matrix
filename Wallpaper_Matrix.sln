@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.10.35004.147
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Wallpaper_Matrix", "Wallpaper_Matrix.vcxproj", "{83C6D5F0-191E-4A7F-911D-EF5ECB6552AD}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{83C6D5F0-191E-4A7F-911D-EF5ECB6552AD}.Debug|x64.ActiveCfg = Debug|x64
+		{83C6D5F0-191E-4A7F-911D-EF5ECB6552AD}.Debug|x64.Build.0 = Debug|x64
+		{83C6D5F0-191E-4A7F-911D-EF5ECB6552AD}.Debug|x86.ActiveCfg = Debug|Win32
+		{83C6D5F0-191E-4A7F-911D-EF5ECB6552AD}.Debug|x86.Build.0 = Debug|Win32
+		{83C6D5F0-191E-4A7F-911D-EF5ECB6552AD}.Release|x64.ActiveCfg = Release|x64
+		{83C6D5F0-191E-4A7F-911D-EF5ECB6552AD}.Release|x64.Build.0 = Release|x64
+		{83C6D5F0-191E-4A7F-911D-EF5ECB6552AD}.Release|x86.ActiveCfg = Release|Win32
+		{83C6D5F0-191E-4A7F-911D-EF5ECB6552AD}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {E0142F44-78FA-4F50-8540-2751AB50F412}
+	EndGlobalSection
+EndGlobal
