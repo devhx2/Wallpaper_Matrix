@@ -87,18 +87,16 @@ void drawText(const int x, const int y, const COLORREF color, const std::string 
 
 bool initialize()
 {
-    bool result = setWorkerW();
     std::cout << "WorkerW: ";
-    if (!result)
+    if (!setWorkerW())
     {
         std::cout << "Error" << std::endl;
         return false;
     }
     std::cout << "0x" << std::hex << g_workerW << std::endl;
 
-    result = getWallpaper();
     std::cout << "Wallpaper: ";
-    if (!result)
+    if (!getWallpaper())
     {
         std::cout << "Error" << std::endl;
         return false;
@@ -107,14 +105,34 @@ bool initialize()
 
     g_hdc = GetDC(g_workerW);
 
-    result = setFont();
     std::cout << "Font: ";
-    if (!result)
+    if (!setFont())
     {
         std::cout << "Error" << std::endl;
         return false;
     }
     std::cout << Font << std::endl;
+
+    if (!SetConsoleCtrlHandler((PHANDLER_ROUTINE)[](DWORD event) -> BOOL
+    {
+        switch (event)
+        {
+            // Ctrl + C イベントはexe実行のみ機能
+            case CTRL_C_EVENT:
+            case CTRL_CLOSE_EVENT:
+            case CTRL_SHUTDOWN_EVENT:
+                g_loop = false;
+                return TRUE;
+            default:
+                return FALSE;
+        }
+    }, TRUE))
+    {
+        std::cout << "Ctrl Handle : Error" << std::endl;
+        return false;
+    }
+
+    g_loop = true;
 
     return true;
 }
@@ -123,9 +141,8 @@ bool finalize()
 {
     ReleaseDC(g_workerW, g_hdc);
 
-    bool result = setWallpaper(g_path);
     std::cout << "Wallpaper: ";
-    if (!result)
+    if (!setWallpaper(g_path))
     {
         std::cout << "Error" << std::endl;
         return false;
@@ -139,34 +156,26 @@ int main()
 {
     if (!initialize()) return EXIT_FAILURE;
 
-    auto handler = [](DWORD event) -> BOOL
-    {
-        switch (event)
-        {
-            case CTRL_CLOSE_EVENT:
-                return TRUE;
-            default:
-                return FALSE;
-        }
-    };
-
-    // コンソールクローズイベントハンドラの設定
-    if (!SetConsoleCtrlHandler((PHANDLER_ROUTINE)handler, TRUE))
-    {
-        std::cerr << "Error: Could not set control handler." << std::endl;
-        return 1;
-    }
-
-    clearScreen();
-    for (int y = 0; y < MaxRow; y++)
+    /*for (int y = 0; y < MaxRow; y++)
     {
         for (int x = 0; x < MaxColumn; x++)
         {
             drawText(5 + (10 + 10) * x, 20 * y, Green, "q");
         }
-    }
+    }*/
 
-    std::cin.get();
+    int count = 0;
+    while (g_loop)
+    {
+        clearScreen();
+        drawText(5,  0 + count * 20, Green, "p");
+        drawText(5, 20 + count * 20, Green, "q");
+        drawText(5, 40 + count * 20, Green, "r");
+        drawText(5, 60 + count * 20, Green, "s");
+        drawText(5, 80 + count * 20, Green, "t");
+        count++;
+        Sleep(50);
+    }
 
     if (!finalize()) return EXIT_FAILURE;
 
