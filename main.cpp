@@ -10,12 +10,16 @@ constexpr COLORREF Black = RGB(0, 0, 0);
 constexpr COLORREF Green = RGB(19, 161, 14);
 constexpr int MaxColumn = 96;
 constexpr int MaxRow = 54;
+const std::string Font = "Cascadia Mono SemiBold";
 
-HWND getWorkerW()
+HWND g_workerW;
+std::string g_path;
+HDC g_hdc;
+
+bool setWorkerW()
 {
     // デスクトップ画面を管理するウィンドウを取得
     const HWND progman = GetShellWindow();
-    std::cout << "Progman: " << progman << std::endl;
 
     // メッセージを送ってWorkerWを生成させる
     // 詳細：https://www.codeproject.com/Articles/856020/Draw-Behind-Desktop-Icons-in-Windows-plus
@@ -23,111 +27,126 @@ HWND getWorkerW()
 
     // WorkerWは複数ある
     // アイコン裏の描画はデスクトップ管理ウィンドウの次のWorkerW
-    HWND workerW = GetNextWindow(progman, GW_HWNDPREV);
+    g_workerW = GetNextWindow(progman, GW_HWNDPREV);
 
-    std::cout << "WorkerW: ";
-
-    if (workerW == NULL) std::cout << "NULL" << std::endl;
-    else std::cout << workerW << std::endl;
-
-    return workerW;
+    return g_workerW != NULL;
 }
 
-std::string getWallpaper()
+bool getWallpaper()
 {
     char path[MAX_PATH]{};
 
-    std::cout << "Wallpaper: ";
-
     // デスクトップの壁紙を取得
-    if (SystemParametersInfo(SPI_GETDESKWALLPAPER, MAX_PATH, path, NULL))
+    if (SystemParametersInfo(SPI_GETDESKWALLPAPER, MAX_PATH, (PVOID)path, NULL))
     {
-        std::cout << path << std::endl;
-        return path;
+        g_path = path;
+        return true;
     }
-    else
-    {
-        std::cout << "NULL" << std::endl;
-        return "";
-    }
+    return false;
 }
 
-void setWallpaper(const std::string path)
+bool setWallpaper(const std::string path)
 {
-    std::cout << "Set Wallpaper: ";
-
     // デスクトップの壁紙を設定
-    if (SystemParametersInfo(SPI_SETDESKWALLPAPER, NULL, (PVOID)path.c_str(),
-        SPIF_UPDATEINIFILE | SPIF_SENDCHANGE)) std::cout << "OK" << std::endl;
-    else std::cout << "Error" << std::endl;
+    return SystemParametersInfo(SPI_SETDESKWALLPAPER, NULL, (PVOID)path.c_str(),
+                                SPIF_UPDATEINIFILE | SPIF_SENDCHANGE) == TRUE;
 }
 
-void setFont(const HDC hdc)
+bool setFont()
 {
     const HFONT font = CreateFont(20, 0, 0, 0, FW_DONTCARE, FALSE, FALSE, FALSE,
                                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
-                                  DRAFT_QUALITY, DEFAULT_PITCH, "Cascadia Mono SemiBold");
-    SelectObject(hdc, font);
+                                  DRAFT_QUALITY, DEFAULT_PITCH, Font.c_str());
+    SelectObject(g_hdc, font);
     DeleteObject(font);
+
+    return true;
 }
 
-void clearScreen(const HDC hdc)
+void clearScreen()
 {
     const HBRUSH brush = CreateSolidBrush(Black);
-    const HBRUSH old = (HBRUSH)SelectObject(hdc, brush);
+    const HBRUSH old = (HBRUSH)SelectObject(g_hdc, brush);
 
-    PatBlt(hdc, 0, 0, ScreenWidth, ScreenHeight, PATCOPY);
+    PatBlt(g_hdc, 0, 0, ScreenWidth, ScreenHeight, PATCOPY);
 
-    SelectObject(hdc, old);
+    SelectObject(g_hdc, old);
     DeleteObject(brush);
 }
 
-void drawText(const HDC hdc, int x, int y, const COLORREF color, const std::string text)
+void drawText(int x, int y, const COLORREF color, const std::string text)
 {
     // 文字の後ろは塗りつぶさない
-    SetBkMode(hdc, TRANSPARENT);
+    SetBkMode(g_hdc, TRANSPARENT);
 
-    SetTextColor(hdc, color);
+    SetTextColor(g_hdc, color);
 
-    TextOut(hdc, x, y, text.c_str(), strlen(text.c_str()));
+    TextOut(g_hdc, x, y, text.c_str(), strlen(text.c_str()));
 }
 
 int main()
 {
-    const HWND workerW = getWorkerW();
-    if (workerW == NULL) return -1;
+    bool result = setWorkerW();
+    std::cout << "WorkerW: ";
+    if (!result)
+    {
+        std::cout << "Error" << std::endl;
+        return EXIT_FAILURE;
+    }
+    std::cout << "0x" << std::hex << g_workerW << std::endl;
 
-    const std::string path = getWallpaper();
-    if (path == "") return -1;
 
-    const HDC hdc = GetDC(workerW);
+    result = getWallpaper();
+    std::cout << "Wallpaper: ";
+    if (!result)
+    {
+        std::cout << "Error" << std::endl;
+        return EXIT_FAILURE;
+    }
+    std::cout << g_path << std::endl;
 
-    setFont(hdc);
+    g_hdc = GetDC(g_workerW);
 
-    /*clearScreen(hdc);
+    result = setFont();
+    std::cout << "Font: ";
+    if (!result)
+    {
+        std::cout << "Error" << std::endl;
+        return EXIT_FAILURE;
+    }
+    std::cout << Font << std::endl;
+
+    //auto handler = [](DWORD event) -> BOOL
+    //{
+    //    if (event == CTRL_CLOSE_EVENT)
+    //    {
+    //        ReleaseDC(g_workerW, g_hdc);
+    //        setWallpaper(g_path);
+    //        return TRUE;
+    //    }
+    //    return FALSE;
+    //};
+
+    //// コンソールクローズイベントハンドラの設定
+    //if (!SetConsoleCtrlHandler((PHANDLER_ROUTINE)handler, TRUE))
+    //{
+    //    std::cerr << "Error: Could not set control handler." << std::endl;
+    //    return 1;
+    //}
+
+    clearScreen();
     for (int y = 0; y < MaxRow; y++)
     {
         for (int x = 0; x < MaxColumn; x++)
         {
-            drawText(hdc, 5 + (10 + 10) * x, 20 * y, Green, "q");
+            drawText(5 + (10 + 10) * x, 20 * y, Green, "q");
         }
-    }*/
-
-    for (int i = 0; i < MaxRow; i++)
-    {
-        clearScreen(hdc);
-        drawText(hdc, 5, 20 * i + 0, Green,  "m");
-        drawText(hdc, 5, 20 * i + 20, Green, "s");
-        drawText(hdc, 5, 20 * i + 40, Green, "`");
-        drawText(hdc, 5, 20 * i + 60, Green, "^");
-        drawText(hdc, 5, 20 * i + 80, Green, "R");
-
-        Sleep(50);
     }
 
-    ReleaseDC(workerW, hdc);
+    std::cin.get();
 
-    setWallpaper(path);
+    ReleaseDC(g_workerW, g_hdc);
+    setWallpaper(g_path);
 
-    return 0;
+    return EXIT_SUCCESS;
 }
