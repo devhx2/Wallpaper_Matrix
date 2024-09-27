@@ -69,39 +69,26 @@ int main()
 
     const HDC hdc = GetDC(workerW);
     const HBRUSH brush = CreateSolidBrush(Black);
-
     SelectObject(hdc, brush);
+
+    // WorkerW一面をbrushで塗りつぶす
     Rectangle(hdc, 0, 0, Width, Height);
 
-    HFONT font = CreateFont(
-        20,                            // フォントの高さ(大きさ)。
-        0,                             // フォントの幅。普通０。
-        0,                             // 角度。０でＯＫ。
-        0,                             // 同じく角度。これも０。
-        FW_DONTCARE,                   // 文字の太さ。
-        FALSE,                         // フォントがイタリックならTRUEを指定。
-        FALSE,                         // 下線を引くならTRUE。
-        FALSE,                         // 取り消し線を引くならTRUE。
-        ANSI_CHARSET,                  // フォントの文字セット。このままでＯＫ。
-        OUT_DEFAULT_PRECIS,            // 出力精度の設定。このままでＯＫ。
-        CLIP_DEFAULT_PRECIS,           // クリッピング精度。このままでＯＫ。
-        DRAFT_QUALITY,                 // フォントの出力品質。このままでＯＫ。
-        DEFAULT_PITCH,                 // フォントのピッチとファミリを指定。このままでＯＫ。
-        "Cascadia Mono SemiBold"       // フォントのタイプフェイス名の指定。これは見たまんま。
-    );
-
+    const HFONT font = CreateFont(20, 0, 0, 0, FW_DONTCARE, FALSE, FALSE, FALSE, ANSI_CHARSET,
+                                  OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DRAFT_QUALITY, DEFAULT_PITCH, "Cascadia Mono SemiBold");
     SelectObject(hdc, font);
+
+    // 文字の後ろは塗りつぶさない
+    SetBkMode(hdc, TRANSPARENT);
 
     const wchar_t* text = L"Test";
 
-    SetBkMode(hdc, TRANSPARENT);
-
     SetTextColor(hdc, Green);
-    TextOutW(hdc, 100, 100, text, wcslen(text));
+
+    TextOutW(hdc, 0, 0, text, wcslen(text));
 
     DeleteObject(brush);
     DeleteObject(font);
-
     ReleaseDC(workerW, hdc);
 
     std::cin.get();
