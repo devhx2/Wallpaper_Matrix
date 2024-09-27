@@ -8,9 +8,11 @@
 
 int main()
 {
-    HWND workerW = utility::getWorkerW();
-
+    const HWND workerW = utility::getWorkerW();
     if (workerW == NULL) return -1;
+
+    const std::string path = utility::getWallpaper();
+    if (path == "") return -1;
 
     //// 壁紙のパスを取得
     //char path[MAX_PATH]{};
@@ -59,6 +61,8 @@ int main()
     //SystemParametersInfo(SPI_SETDESKWALLPAPER, NULL, path, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE);
 
     //std::cin.get();
+
+    utility::setWallpaper(path);
 
     return 0;
 }
