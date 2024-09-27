@@ -71,7 +71,7 @@ void setFont(const HDC hdc)
     DeleteObject(font);
 }
 
-void drawBack(const HDC hdc)
+void clearScreen(const HDC hdc)
 {
     const HBRUSH brush = CreateSolidBrush(Black);
     const HBRUSH old = (HBRUSH)SelectObject(hdc, brush);
@@ -109,7 +109,7 @@ int main()
 
     setFont(hdc);
 
-    drawBack(hdc);
+    clearScreen(hdc);
     for (int y = 0; y < MaxRow; y++)
     {
         for (int x = 0; x < MaxColumn; x++)
@@ -117,8 +117,6 @@ int main()
             drawText(hdc, 5 + (10 + 10) * x, 20 * y, Green, "q");
         }
     }
-
-    std::cin.get();
 
     DeleteDC(back);
     DeleteObject(back);
