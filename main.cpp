@@ -101,25 +101,30 @@ int main()
     if (path == "") return -1;
 
     const HDC hdc = GetDC(workerW);
-    const HDC back = CreateCompatibleDC(hdc);
-    const HBITMAP bitmap = CreateCompatibleBitmap(hdc, ScreenWidth, ScreenHeight);
-
-    SelectObject(back, bitmap);
-    SelectObject(back, GetStockObject(DC_BRUSH));
 
     setFont(hdc);
 
-    clearScreen(hdc);
+    /*clearScreen(hdc);
     for (int y = 0; y < MaxRow; y++)
     {
         for (int x = 0; x < MaxColumn; x++)
         {
             drawText(hdc, 5 + (10 + 10) * x, 20 * y, Green, "q");
         }
+    }*/
+
+    for (int i = 0; i < MaxRow; i++)
+    {
+        clearScreen(hdc);
+        drawText(hdc, 5, 20 * i + 0, Green,  "m");
+        drawText(hdc, 5, 20 * i + 20, Green, "s");
+        drawText(hdc, 5, 20 * i + 40, Green, "`");
+        drawText(hdc, 5, 20 * i + 60, Green, "^");
+        drawText(hdc, 5, 20 * i + 80, Green, "R");
+
+        Sleep(50);
     }
 
-    DeleteDC(back);
-    DeleteObject(back);
     ReleaseDC(workerW, hdc);
 
     setWallpaper(path);
