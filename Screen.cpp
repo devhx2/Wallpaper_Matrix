@@ -1,5 +1,7 @@
 #include "Screen.hpp"
 
+bool Screen::m_loop;
+
 Screen::Screen()
     : m_workerW(nullptr)
     , m_hdc(nullptr)
@@ -47,17 +49,47 @@ bool Screen::Initialize()
     }
     std::cout << Font << std::endl;
 
+    std::cout << "Ctrl Handle: ";
+    if (!SetConsoleCtrlHandler((PHANDLER_ROUTINE)[](DWORD event) -> BOOL
+    {
+        switch (event)
+        {
+            // イベントはexe実行のみ機能
+            // VisualStudioからの実行では機能しない
+            case CTRL_C_EVENT:
+            case CTRL_CLOSE_EVENT:
+            case CTRL_SHUTDOWN_EVENT:
+                m_loop = false;
+                return TRUE;
+            default:
+                return FALSE;
+        }
+    }, TRUE))
+    {
+        std::cout << "Error" << std::endl;
+        return EXIT_FAILURE;
+    }
+    std::cout << "Set" << std::endl;
+
     return true;
 }
 
-void Screen::Write(const int x, const int y, const Color color, const std::string text) const
+bool Screen::Update()
 {
-    // 文字の後ろは塗りつぶさない
-    SetBkMode(m_hdc, TRANSPARENT);
+    Sleep(WaitTime);
 
-    SetTextColor(m_hdc, (int)color);
+    return true;
+}
 
-    TextOut(m_hdc, x, y, text.c_str(), strlen(text.c_str()));
+void Screen::Draw()
+{
+    static int count = 0;
+    writeText(5, 0 + count * 20 - 100, Color::Green, "p");
+    writeText(5, 20 + count * 20 - 100, Color::Green, "q");
+    writeText(5, 40 + count * 20 - 100, Color::Green, "r");
+    writeText(5, 60 + count * 20 - 100, Color::Green, "s");
+    writeText(5, 80 + count * 20 - 100, Color::Green, "t");
+    count++;
 }
 
 void Screen::Clear() const
@@ -117,4 +149,15 @@ bool Screen::setFont()
     DeleteObject(font);
 
     return true;
+}
+
+
+void Screen::writeText(const int x, const int y, const Color color, const std::string text) const
+{
+    // 文字の後ろは塗りつぶさない
+    SetBkMode(m_hdc, TRANSPARENT);
+
+    SetTextColor(m_hdc, (int)color);
+
+    TextOut(m_hdc, x, y, text.c_str(), strlen(text.c_str()));
 }
