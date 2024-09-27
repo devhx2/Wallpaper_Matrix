@@ -72,12 +72,11 @@ void setFont(const HDC hdc)
 void drawBack(const HDC hdc)
 {
     const HBRUSH brush = CreateSolidBrush(Black);
+    const HBRUSH old = (HBRUSH)SelectObject(hdc, brush);
 
-    SelectObject(hdc, brush);
+    PatBlt(hdc, 0, 0, Width, Height, PATCOPY);
 
-    // WorkerW一面をbrushで塗りつぶす
-    Rectangle(hdc, 0, 0, Width, Height);
-
+    SelectObject(hdc, old);
     DeleteObject(brush);
 }
 
@@ -100,15 +99,25 @@ int main()
     if (path == "") return -1;
 
     const HDC hdc = GetDC(workerW);
+    const HDC back = CreateCompatibleDC(hdc);
+    const HBITMAP bitmap = CreateCompatibleBitmap(hdc, Width, Height);
+
+    SelectObject(back, bitmap);
+    SelectObject(back, GetStockObject(DC_BRUSH));
 
     setFont(hdc);
 
-    drawBack(hdc);
-    drawText(hdc, 0, 0, Green, "Text");
+    for (int i = 0; i < 5; i++)
+    {
+        drawBack(hdc);
+        drawText(hdc, 0, 20 * i, Green, "Text");
 
+        std::cin.get();
+    }
+
+    DeleteDC(back);
+    DeleteObject(back);
     ReleaseDC(workerW, hdc);
-
-    std::cin.get();
 
     setWallpaper(path);
 
