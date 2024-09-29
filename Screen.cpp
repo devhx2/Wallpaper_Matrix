@@ -87,8 +87,7 @@ bool Screen::Initialize()
 
 bool Screen::Update()
 {
-    /*std::for_each(m_lines.begin(), m_lines.end(), [](Line line) { line.Update(); });*/
-    m_lines[0].Update();
+    std::for_each(m_lines.begin(), m_lines.end(), [](Line &line) { line.Update(); });
 
     Sleep(WaitTime);
 
@@ -97,20 +96,12 @@ bool Screen::Update()
 
 void Screen::Draw()
 {
-    /*std::for_each(m_lines.begin(), m_lines.end(), [this](Line line) { line.Draw(this); });*/
-    m_lines[0].Draw(this);
+    std::for_each(m_lines.begin(), m_lines.end(), [this](Line &line) { line.Draw(this); });
 }
 
 void Screen::Clear()
 {
-    const HBRUSH brush = CreateSolidBrush((int)Color::Black);
-    const HBRUSH old = (HBRUSH)SelectObject(m_hdc, brush);
-
-    // brushÇÃêFÇ≈ìhÇËÇ¬Ç‘Ç∑
-    PatBlt(m_hdc, 0, 0, ScreenWidth, ScreenHeight, PATCOPY);
-
-    SelectObject(m_hdc, old);
-    DeleteObject(brush);
+    drawRectangle(0, 0, ScreenWidth, ScreenHeight, Color::Black);
 }
 
 bool Screen::setWorkerW()
@@ -168,6 +159,18 @@ void Screen::drawText(const int x, const int y, const Color color, const std::st
     SetTextColor(m_hdc, (int)color);
 
     TextOut(m_hdc, x, y, text.c_str(), strlen(text.c_str()));
+}
+
+void Screen::drawRectangle(const int x, const int y, const int w, const int h, const Color color)
+{
+    const HBRUSH brush = CreateSolidBrush((int)color);
+    const HBRUSH old = (HBRUSH)SelectObject(m_hdc, brush);
+
+    // brushÇÃêFÇ≈ìhÇËÇ¬Ç‘Ç∑
+    PatBlt(m_hdc, x, y, w, h, PATCOPY);
+
+    SelectObject(m_hdc, old);
+    DeleteObject(brush);
 }
 
 Screen::Line::Line(int column)

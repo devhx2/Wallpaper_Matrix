@@ -58,4 +58,5 @@ private:
     bool setWallpaper(const std::string path);
     bool setFont();
     void drawText(const int x, const int y, const Color color, const std::string text);
+    void drawRectangle(const int x, const int y, const int w, const int h, const Color color);
 };
