@@ -1,5 +1,10 @@
 #include "Screen.hpp"
 
+#include <algorithm>
+#include <cstdlib>
+#include <ctime>
+#include <iostream>
+
 bool Screen::m_loop;
 
 Screen::Screen()
@@ -71,28 +76,32 @@ bool Screen::Initialize()
     }
     std::cout << "Set" << std::endl;
 
+    m_loop = true;
+
+    srand((unsigned)time(NULL));
+
+    m_lines.push_back(Line(0));
+
     return true;
 }
 
 bool Screen::Update()
 {
+    /*std::for_each(m_lines.begin(), m_lines.end(), [](Line line) { line.Update(); });*/
+    m_lines[0].Update();
+
     Sleep(WaitTime);
 
-    return true;
+    return m_loop;
 }
 
 void Screen::Draw()
 {
-    static int count = 0;
-    writeText(5, 0 + count * 20 - 100, Color::Green, "p");
-    writeText(5, 20 + count * 20 - 100, Color::Green, "q");
-    writeText(5, 40 + count * 20 - 100, Color::Green, "r");
-    writeText(5, 60 + count * 20 - 100, Color::Green, "s");
-    writeText(5, 80 + count * 20 - 100, Color::Green, "t");
-    count++;
+    /*std::for_each(m_lines.begin(), m_lines.end(), [this](Line line) { line.Draw(this); });*/
+    m_lines[0].Draw(this);
 }
 
-void Screen::Clear() const
+void Screen::Clear()
 {
     const HBRUSH brush = CreateSolidBrush((int)Color::Black);
     const HBRUSH old = (HBRUSH)SelectObject(m_hdc, brush);
@@ -142,7 +151,7 @@ bool Screen::setWallpaper(const std::string path)
 
 bool Screen::setFont()
 {
-    const HFONT font = CreateFont(20, 0, 0, 0, FW_DONTCARE, FALSE, FALSE, FALSE,
+    const HFONT font = CreateFont(FontHeight, FontWidth, 0, 0, FW_DONTCARE, FALSE, FALSE, FALSE,
                                   ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                   DRAFT_QUALITY, DEFAULT_PITCH, Font.c_str());
     SelectObject(m_hdc, font);
@@ -151,7 +160,7 @@ bool Screen::setFont()
     return true;
 }
 
-void Screen::writeText(const int x, const int y, const Color color, const std::string text) const
+void Screen::drawText(const int x, const int y, const Color color, const std::string text)
 {
     // 文字の後ろは塗りつぶさない
     SetBkMode(m_hdc, TRANSPARENT);
@@ -159,4 +168,42 @@ void Screen::writeText(const int x, const int y, const Color color, const std::s
     SetTextColor(m_hdc, (int)color);
 
     TextOut(m_hdc, x, y, text.c_str(), strlen(text.c_str()));
+}
+
+Screen::Line::Line(int column)
+{
+    m_column = column;
+    
+    // 画面外に上部に初期位置をセット
+    m_row = -8 - (rand() % MaxRow) / 2;
+
+    m_data = std::string(8 + rand() % (MaxRow - 8), '\0');
+}
+
+Screen::Line::~Line()
+{
+}
+
+void Screen::Line::Update()
+{
+    m_row++;
+
+    for (int index = m_data.size() - 1; index >= 1; index--)
+    {
+        m_data[index] = m_data[index - 1];
+    }
+
+    // Asciiコードの制御文字と空白を除いてランダム決定
+    m_data[0] = (33 + rand() % 94);
+}
+
+void Screen::Line::Draw(Screen* screen)
+{
+    for (int index = 0; index < m_data.size(); index++)
+    {
+        int x = 5 /*端の調整*/ + m_column * FontWidth;
+        int y = (m_row - index) * FontHeight;
+        Color color = index == 0 ? Color::Gray : Color::Green;
+        screen->drawText(x, y, color, std::string(1, m_data[index]));
+    }
 }
