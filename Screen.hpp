@@ -29,7 +29,7 @@ private:
         Line(int column);
         ~Line();
 
-        Screen::Line* Update();
+        void Update(Screen* screen);
         void Draw(Screen* screen);
 
     private:
@@ -52,6 +52,8 @@ private:
     std::string m_path;
     HDC m_hdc;
     std::vector<Line*> m_lines;
+    std::vector<Line*> m_delete;
+    std::vector<Line*> m_insert;
 
     bool setWorkerW();
     bool getWallpaper();

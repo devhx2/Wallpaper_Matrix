@@ -1,6 +1,5 @@
 #include "Screen.hpp"
 
-#include <algorithm>
 #include <cstdlib>
 #include <ctime>
 #include <iostream>
@@ -87,15 +86,19 @@ bool Screen::Initialize()
 
 bool Screen::Update()
 {
-    std::vector<Line*> lines;
+    for (const auto& line : m_lines) line->Update(this);
 
-    std::for_each(m_lines.begin(), m_lines.end(), [this, &lines](Line* line)
+    m_lines.insert(m_lines.end(), m_insert.begin(), m_insert.end());
+    m_insert.clear();
+
+    std::erase_if(m_lines, [this](Line* line)
     {
-        auto ptr = line->Update();
-        if (ptr != NULL) lines.push_back(ptr);
+        return std::find(m_delete.begin(), m_delete.end(), line) != m_delete.end();
     });
 
-    m_lines.insert(m_lines.end(), lines.begin(), lines.end());
+    m_delete.clear();
+
+    std::cout << m_lines.size() << std::endl;
 
     Sleep(WaitTime);
 
@@ -104,7 +107,7 @@ bool Screen::Update()
 
 void Screen::Draw()
 {
-    std::for_each(m_lines.begin(), m_lines.end(), [this](Line* line) { line->Draw(this); });
+    for (const auto& line : m_lines) line->Draw(this);
 }
 
 void Screen::Clear()
@@ -194,11 +197,13 @@ Screen::Line::~Line()
 {
 }
 
-Screen::Line* Screen::Line::Update()
+void Screen::Line::Update(Screen* screen)
 {
     m_row++;
 
     const int length = m_data.length();
+
+    if ((m_row - length + 1) == screen->MaxRow) screen->m_delete.push_back(this);
 
     for (int index = length - 1; index >= 1; index--)
     {
@@ -209,7 +214,7 @@ Screen::Line* Screen::Line::Update()
     m_data[0] = (33 + rand() % 94);
 
     // ‰æ–Ê‚É‰‚ß‚Ä“ü‚Á‚½‚Æ‚«‚Ì‚ÝŒã‘±‚ð¶¬
-    return ((m_row - length + 1) == 0) ? new Line(m_column) : NULL;
+    if ((m_row - length + 1) == 0) screen->m_insert.push_back(new Line(m_column));
 }
 
 void Screen::Line::Draw(Screen* screen)
