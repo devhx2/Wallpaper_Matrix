@@ -80,14 +80,22 @@ bool Screen::Initialize()
 
     srand((unsigned)time(NULL));
 
-    m_lines.push_back(Line(0));
+    m_lines.push_back(new Line(0));
 
     return true;
 }
 
 bool Screen::Update()
 {
-    std::for_each(m_lines.begin(), m_lines.end(), [](Line &line) { line.Update(); });
+    std::vector<Line*> lines;
+
+    std::for_each(m_lines.begin(), m_lines.end(), [this, &lines](Line* line)
+    {
+        auto ptr = line->Update();
+        if (ptr != NULL) lines.push_back(ptr);
+    });
+
+    m_lines.insert(m_lines.end(), lines.begin(), lines.end());
 
     Sleep(WaitTime);
 
@@ -96,7 +104,7 @@ bool Screen::Update()
 
 void Screen::Draw()
 {
-    std::for_each(m_lines.begin(), m_lines.end(), [this](Line &line) { line.Draw(this); });
+    std::for_each(m_lines.begin(), m_lines.end(), [this](Line* line) { line->Draw(this); });
 }
 
 void Screen::Clear()
@@ -178,31 +186,36 @@ Screen::Line::Line(int column)
     m_column = column;
     
     // 画面外に上部に初期位置をセット
-    m_row = -8 - (rand() % MaxRow) / 2;
-
-    m_data = std::string(8 + rand() % (MaxRow - 8), '\0');
+    m_row = -8/* - (rand() % MaxRow) / 2*/;
+    m_data = std::string(8 /*+ rand() % (MaxRow - 8)*/, ' ');
 }
 
 Screen::Line::~Line()
 {
 }
 
-void Screen::Line::Update()
+Screen::Line* Screen::Line::Update()
 {
     m_row++;
 
-    for (int index = m_data.size() - 1; index >= 1; index--)
+    const int length = m_data.length();
+
+    for (int index = length - 1; index >= 1; index--)
     {
         m_data[index] = m_data[index - 1];
     }
 
     // Asciiコードの制御文字と空白を除いてランダム決定
     m_data[0] = (33 + rand() % 94);
+
+    // 画面に初めて入ったときのみ後続を生成
+    return ((m_row - length + 1) == 0) ? new Line(m_column) : NULL;
 }
 
 void Screen::Line::Draw(Screen* screen)
 {
-    for (int index = 0; index < m_data.size(); index++)
+    const int length = m_data.length();
+    for (int index = 0; index < length; index++)
     {
         int x = 5 /*端の調整*/ + m_column * FontWidth;
         int y = (m_row - index) * FontHeight;
