@@ -44,6 +44,7 @@ bool Screen::Initialize()
         return false;
     }
     std::cout << "0x" << std::hex << m_workerW << std::endl;
+    std::cout << std::dec;
 
     std::cout << "Wallpaper: ";
     if (!getWallpaper())
@@ -81,12 +82,14 @@ bool Screen::Initialize()
 
     srand((unsigned)time(NULL));
 
-    for (int column = 0; column < MaxColumn; column++) m_lines.push_back(new Line(column));
+    //const int columns = 96;
+    const int columns = (getWidth() - 5 * 2 /*両端*/ - (FontWidth * 2)) / FontWidth * 2;
+    for (int column = 0; column < columns; column++) m_lines.push_back(new Line(column));
 
     // ダブルバッファの準備
     {
         HDC hdc = GetDC(m_workerW);
-        m_bitmap = CreateCompatibleBitmap(hdc, ScreenWidth, ScreenHeight);
+        m_bitmap = CreateCompatibleBitmap(hdc, getWidth(), getHeight());
         m_buffer = CreateCompatibleDC(nullptr);
         SelectObject(m_buffer, m_bitmap);
         ReleaseDC(m_workerW, hdc);
@@ -104,7 +107,12 @@ bool Screen::Update()
 
     std::erase_if(m_lines, [this](Line* line)
     {
-        return std::find(m_delete.begin(), m_delete.end(), line) != m_delete.end();
+        if (std::find(m_delete.begin(), m_delete.end(), line) != m_delete.end())
+        {
+            delete line;
+            return true;
+        }
+        return false;
     });
 
     m_delete.clear();
@@ -130,13 +138,13 @@ void Screen::Draw()
 
 void Screen::Clear()
 {
-    drawRectangle(0, 0, ScreenWidth, ScreenHeight, Color::Black);
+    drawRectangle(0, 0, getWidth(), getHeight(), Color::Black);
 }
 
 void Screen::Flip()
 {
     HDC hdc = GetDC(m_workerW);
-    BitBlt(hdc, 0, 0, ScreenWidth, ScreenHeight, m_buffer, 0, 0, SRCCOPY);
+    BitBlt(hdc, 0, 0, getWidth(), getHeight(), m_buffer, 0, 0, SRCCOPY);
     ReleaseDC(m_workerW, hdc);
 }
 
@@ -176,6 +184,20 @@ bool Screen::setWallpaper(const std::string path)
                                 SPIF_UPDATEINIFILE | SPIF_SENDCHANGE) == TRUE;
 }
 
+int Screen::getWidth()
+{
+    RECT rect;
+    GetClientRect(m_workerW, &rect);
+    return rect.right - rect.left;
+}
+
+int Screen::getHeight()
+{
+    RECT rect;
+    GetClientRect(m_workerW, &rect);
+    return rect.bottom - rect.top;
+}
+
 void Screen::drawText(const int x, const int y, const Color color, const std::string text)
 {
     // 文字の後ろは塗りつぶさない
@@ -188,8 +210,8 @@ void Screen::drawText(const int x, const int y, const Color color, const std::st
 
 void Screen::drawRectangle(const int x, const int y, const int w, const int h, const Color color)
 {
-    const HBRUSH brush = CreateSolidBrush((int)color);
-    const HBRUSH old = (HBRUSH)SelectObject(m_buffer, brush);
+    HBRUSH brush = CreateSolidBrush((int)color);
+    HBRUSH old = (HBRUSH)SelectObject(m_buffer, brush);
 
     // brushの色で塗りつぶす
     PatBlt(m_buffer, x, y, w, h, PATCOPY);
@@ -216,8 +238,9 @@ void Screen::Line::Update(Screen* screen)
     m_row++;
 
     const int length = m_data.length();
+    const int row = screen->getHeight() / FontHeight;
 
-    if ((m_row - length + 1) == screen->MaxRow) screen->m_delete.push_back(this);
+    if ((m_row - length + 1) == row) screen->m_delete.push_back(this);
 
     for (int index = length - 1; index >= 1; index--)
     {
@@ -236,7 +259,7 @@ void Screen::Line::Draw(Screen* screen)
     const int length = m_data.length();
     for (int index = 0; index < length; index++)
     {
-        int x = 5 /*端の調整*/ + m_column * FontWidth;
+        int x = 5 /*端の調整*/ + m_column * FontWidth * 2;
         int y = (m_row - index) * FontHeight;
         Color color = index == 0 ? Color::Gray : Color::Green;
         screen->drawText(x, y, color, std::string(1, m_data[index]));
