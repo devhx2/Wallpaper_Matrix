@@ -13,6 +13,7 @@ int main()
     {
         screen.Clear();
         screen.Draw();
+        screen.Flip();
     }
 
     return EXIT_SUCCESS;

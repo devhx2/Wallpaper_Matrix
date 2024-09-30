@@ -14,6 +14,7 @@ public:
     bool Update();
     void Draw();
     void Clear();
+    void Flip();
 
 private:
     enum class Color
@@ -50,7 +51,8 @@ private:
     static bool m_loop;
     HWND m_workerW;
     std::string m_path;
-    HDC m_hdc;
+    HDC m_buffer;
+    HBITMAP m_bitmap;
     std::vector<Line*> m_lines;
     std::vector<Line*> m_delete;
     std::vector<Line*> m_insert;
@@ -58,7 +60,6 @@ private:
     bool setWorkerW();
     bool getWallpaper();
     bool setWallpaper(const std::string path);
-    bool setFont();
     void drawText(const int x, const int y, const Color color, const std::string text);
     void drawRectangle(const int x, const int y, const int w, const int h, const Color color);
 };

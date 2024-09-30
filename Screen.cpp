@@ -8,13 +8,23 @@ bool Screen::m_loop;
 
 Screen::Screen()
     : m_workerW(nullptr)
-    , m_hdc(nullptr)
+    , m_buffer(nullptr)
+    , m_bitmap()
 {
 }
 
 Screen::~Screen()
 {
-    ReleaseDC(m_workerW, m_hdc);
+    if (m_buffer)
+    {
+        DeleteDC(m_buffer);
+        m_buffer = nullptr;
+    }
+    if (m_bitmap)
+    {
+        DeleteObject(m_bitmap);
+        m_bitmap = nullptr;
+    }
 
     std::cout << "Wallpaper: ";
     if (!setWallpaper(m_path))
@@ -43,14 +53,6 @@ bool Screen::Initialize()
     }
     std::cout << m_path << std::endl;
 
-    m_hdc = GetDC(m_workerW);
-
-    std::cout << "Font: ";
-    if (!setFont())
-    {
-        std::cout << "Error" << std::endl;
-        return false;
-    }
     std::cout << Font << std::endl;
 
     std::cout << "Ctrl Handle: ";
@@ -79,7 +81,16 @@ bool Screen::Initialize()
 
     srand((unsigned)time(NULL));
 
-    m_lines.push_back(new Line(0));
+    for (int column = 0; column < MaxColumn; column++) m_lines.push_back(new Line(column));
+
+    // ダブルバッファの準備
+    {
+        HDC hdc = GetDC(m_workerW);
+        m_bitmap = CreateCompatibleBitmap(hdc, ScreenWidth, ScreenHeight);
+        m_buffer = CreateCompatibleDC(nullptr);
+        SelectObject(m_buffer, m_bitmap);
+        ReleaseDC(m_workerW, hdc);
+    }
 
     return true;
 }
@@ -98,8 +109,6 @@ bool Screen::Update()
 
     m_delete.clear();
 
-    std::cout << m_lines.size() << std::endl;
-
     Sleep(WaitTime);
 
     return m_loop;
@@ -107,12 +116,28 @@ bool Screen::Update()
 
 void Screen::Draw()
 {
+    // フォントセット
+    {
+        const HFONT font = CreateFont(FontHeight, FontWidth, 0, 0, FW_DONTCARE, FALSE, FALSE, FALSE,
+                                      ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                      DRAFT_QUALITY, DEFAULT_PITCH, Font.c_str());
+        SelectObject(m_buffer, font);
+        DeleteObject(font);
+    }
+
     for (const auto& line : m_lines) line->Draw(this);
 }
 
 void Screen::Clear()
 {
     drawRectangle(0, 0, ScreenWidth, ScreenHeight, Color::Black);
+}
+
+void Screen::Flip()
+{
+    HDC hdc = GetDC(m_workerW);
+    BitBlt(hdc, 0, 0, ScreenWidth, ScreenHeight, m_buffer, 0, 0, SRCCOPY);
+    ReleaseDC(m_workerW, hdc);
 }
 
 bool Screen::setWorkerW()
@@ -151,36 +176,25 @@ bool Screen::setWallpaper(const std::string path)
                                 SPIF_UPDATEINIFILE | SPIF_SENDCHANGE) == TRUE;
 }
 
-bool Screen::setFont()
-{
-    const HFONT font = CreateFont(FontHeight, FontWidth, 0, 0, FW_DONTCARE, FALSE, FALSE, FALSE,
-                                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                  DRAFT_QUALITY, DEFAULT_PITCH, Font.c_str());
-    SelectObject(m_hdc, font);
-    DeleteObject(font);
-
-    return true;
-}
-
 void Screen::drawText(const int x, const int y, const Color color, const std::string text)
 {
     // 文字の後ろは塗りつぶさない
-    SetBkMode(m_hdc, TRANSPARENT);
+    SetBkMode(m_buffer, TRANSPARENT);
 
-    SetTextColor(m_hdc, (int)color);
+    SetTextColor(m_buffer, (int)color);
 
-    TextOut(m_hdc, x, y, text.c_str(), strlen(text.c_str()));
+    TextOut(m_buffer, x, y, text.c_str(), strlen(text.c_str()));
 }
 
 void Screen::drawRectangle(const int x, const int y, const int w, const int h, const Color color)
 {
     const HBRUSH brush = CreateSolidBrush((int)color);
-    const HBRUSH old = (HBRUSH)SelectObject(m_hdc, brush);
+    const HBRUSH old = (HBRUSH)SelectObject(m_buffer, brush);
 
     // brushの色で塗りつぶす
-    PatBlt(m_hdc, x, y, w, h, PATCOPY);
+    PatBlt(m_buffer, x, y, w, h, PATCOPY);
 
-    SelectObject(m_hdc, old);
+    SelectObject(m_buffer, old);
     DeleteObject(brush);
 }
 
@@ -189,8 +203,8 @@ Screen::Line::Line(int column)
     m_column = column;
     
     // 画面外に上部に初期位置をセット
-    m_row = -8/* - (rand() % MaxRow) / 2*/;
-    m_data = std::string(8 /*+ rand() % (MaxRow - 8)*/, ' ');
+    m_row = -8 - (rand() % 32);
+    m_data = std::string(4 + rand() % 32, ' ');
 }
 
 Screen::Line::~Line()
