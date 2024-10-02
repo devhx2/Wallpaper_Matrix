@@ -39,6 +39,8 @@ private:
         std::string m_data;
     };
 
+    static const int ScreenWidth = 1920;
+    static const int ScreenHeight = 1080;
     static const int FontHeight = 20;
     static const int FontWidth = FontHeight / 2;
     const std::string Font = "Cascadia Mono SemiBold";
@@ -56,8 +58,6 @@ private:
     bool setWorkerW();
     bool getWallpaper();
     bool setWallpaper(const std::string path);
-    int getWidth();
-    int getHeight();
     void drawText(const int x, const int y, const Color color, const std::string text);
     void drawRectangle(const int x, const int y, const int w, const int h, const Color color);
 };
