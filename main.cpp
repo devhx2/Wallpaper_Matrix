@@ -3,13 +3,16 @@
 #pragma comment(lib,"d2d1.lib")
 #pragma comment(lib,"dwrite.lib")
 
-#include <windows.h>
+#include <d2d1.h>
 #include <d3d11_1.h>
 #include <directxcolors.h>
-#include <d2d1.h>
 #include <dwrite.h>
+#include <windows.h>
 
-HINSTANCE g_hInst = nullptr;
+#include <cstdlib>
+#include <iostream>
+#include <string>
+
 HWND g_hWnd = nullptr;
 D3D_DRIVER_TYPE g_driverType = D3D_DRIVER_TYPE_NULL;
 D3D_FEATURE_LEVEL g_featureLevel = D3D_FEATURE_LEVEL_11_0;
@@ -24,13 +27,17 @@ ID2D1Factory* g_pD2DFactory = nullptr;
 IDWriteFactory* g_pDWriteFactory = nullptr;
 IDWriteTextFormat* g_pTextFormat = nullptr;
 ID2D1RenderTarget* g_pRT = nullptr;
-ID2D1SolidColorBrush* g_pSolidBrush = nullptr;
+ID2D1SolidColorBrush* g_pGreenBrush = nullptr;
+ID2D1SolidColorBrush* g_pGrayBrush = nullptr;
 IDXGISurface* g_pBackBuffer = nullptr;
+
+LARGE_INTEGER g_startTime;
+LARGE_INTEGER g_endTime;
+LARGE_INTEGER g_freqTime;
 
 HRESULT InitDevice();
 void Render();
 void CleanupDevice();
-
 
 int main()
 {
@@ -47,6 +54,9 @@ int main()
         g_hWnd = GetNextWindow(progman, GW_HWNDPREV);
     }
 
+    QueryPerformanceFrequency(&g_freqTime);
+    QueryPerformanceCounter(&g_startTime);
+
     if (FAILED(InitDevice()))
     {
         CleanupDevice();
@@ -54,23 +64,14 @@ int main()
     }
 
     // メインメッセージループ
-    MSG msg = { 0 };
-    while (WM_QUIT != msg.message)
+    while (true)
     {
-        if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
-        {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
-        else
-        {
-            Render();
-        }
+        Render();
     }
 
     CleanupDevice();
 
-    return (int)msg.wParam;
+    return 0;
 }
 
 HRESULT InitDevice()
@@ -248,37 +249,71 @@ HRESULT InitDevice()
     //第7引数：ロケール名（L""）
     //第8引数：テキストフォーマット（&g_pTextFormat）
     hr = g_pDWriteFactory->CreateTextFormat(L"Cascadia Code", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, 20, L"", &g_pTextFormat);
-    if (FAILED(hr))
-        return hr;
+    if (FAILED(hr)) return hr;
 
-    //関数SetTextAlignment()
-    //第1引数：テキストの配置（DWRITE_TEXT_ALIGNMENT_LEADING：前, DWRITE_TEXT_ALIGNMENT_TRAILING：後, DWRITE_TEXT_ALIGNMENT_CENTER：中央,
-    //                         DWRITE_TEXT_ALIGNMENT_JUSTIFIED：行いっぱい）
     hr = g_pTextFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
-    if (FAILED(hr))
-        return hr;
+    if (FAILED(hr)) return hr;
 
     //関数CreateSolidColorBrush()
     //第1引数：フォント色（D2D1::ColorF(D2D1::ColorF::Black)：黒, D2D1::ColorF(D2D1::ColorF(0.0f, 0.2f, 0.9f, 1.0f))：RGBA指定）
-    hr = g_pRT->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black), &g_pSolidBrush);
-    if (FAILED(hr))
-        return hr;
+    hr = g_pRT->CreateSolidColorBrush(D2D1::ColorF(0.07f, 0.63f, 0.05f, 1.0f), &g_pGreenBrush);
+    if (FAILED(hr)) return hr;
+    hr = g_pRT->CreateSolidColorBrush(D2D1::ColorF(0.75f, 0.75f, 0.75f, 1.0f), &g_pGrayBrush);
+    if (FAILED(hr)) return hr;
 
     return S_OK;
 }
 
 void Render()
 {
-    g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, DirectX::Colors::Aquamarine);
+    FLOAT color[] = {0.0f, 0.0f, 0.0f, 0.0f};
+    g_pImmediateContext->ClearRenderTargetView(g_pRenderTargetView, color);
 
     // テキストの描画
-    WCHAR wcText1[] = L"0123456789";
-    static int count = 0;
+    static std::wstring text = L"0123456789";
+    static int frame = 0;
     g_pRT->BeginDraw();
-    g_pRT->DrawText(wcText1, ARRAYSIZE(wcText1) - 1, g_pTextFormat, D2D1::RectF(0, count * 20, 800, (count + 1) * 20), g_pSolidBrush, D2D1_DRAW_TEXT_OPTIONS_NONE);
+    for (int lane = 0; lane < 96 * 2; lane++)
+    {
+        for (int j = 0; j < 1 * 10; j += 10)
+        {
+            for (int i = 0; i < text.length(); i++)
+            {
+                int x = 5 + lane * 40;
+                g_pRT->DrawText(text.substr(i, 1).c_str(), text.length() - 1, g_pTextFormat, D2D1::RectF(x, (frame + i + j) * 20, x + 20, (frame + i + j+ 1) * 20), i == text.length() - 1 ? g_pGrayBrush : g_pGreenBrush, D2D1_DRAW_TEXT_OPTIONS_NONE);
+            }
+        }
+    }
     g_pRT->EndDraw();
-    Sleep(50);
-    count++;
+
+    wchar_t c = text[0];
+    for (int index = 1; index < text.length(); index++)
+    {
+        text[index - 1] = text[index];
+    }
+    text[text.length() - 1] = /*(33 + rand() % 94)*/c;
+
+    frame++;
+
+    {
+        QueryPerformanceCounter(&g_endTime);
+        if (g_endTime.QuadPart - g_startTime.QuadPart != 0)
+        {
+            float framerate = 20.0f;
+            float frameTime = 1.0f / framerate;
+            float deltaTime = (float)(g_endTime.QuadPart - g_startTime.QuadPart) /
+                (float)g_freqTime.QuadPart;
+
+            if (deltaTime < frameTime)
+            {
+                float sleepTime = (frameTime - deltaTime) * 1000.0f;
+                Sleep(static_cast<DWORD>(sleepTime));
+                //std::cout << "sleep " << sleepTime;
+            }
+            std::cout << " frame " << 1 / deltaTime << std::endl;
+        }
+        g_startTime = g_endTime;
+    }
 
     g_pSwapChain->Present(0, 0);
 }
@@ -286,7 +321,8 @@ void Render()
 void CleanupDevice()
 {
     if (g_pBackBuffer) g_pBackBuffer->Release();
-    if (g_pSolidBrush) g_pSolidBrush->Release();
+    if (g_pGreenBrush) g_pGreenBrush->Release();
+    if (g_pGrayBrush) g_pGrayBrush->Release();
     if (g_pRT) g_pRT->Release();
     if (g_pTextFormat) g_pTextFormat->Release();
     if (g_pDWriteFactory) g_pDWriteFactory->Release();

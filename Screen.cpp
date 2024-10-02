@@ -117,8 +117,6 @@
 //
 //    m_delete.clear();
 //
-//    Sleep(WaitTime);
-//
 //    return m_loop;
 //}
 //
