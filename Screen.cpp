@@ -82,7 +82,11 @@ bool Screen::Initialize()
 
     for (int column = 0; column < MaxColumn; column++) m_lines.push_back(Line(column * 2));
 
-    for (int row = 0; row < MaxRow; row++) m_strings.push_back(std::string(MaxColumn * 2, ' '));
+    for (int row = 0; row < MaxRow; row++)
+    {
+        m_strings.push_back(std::string(MaxColumn * 2, ' '));
+        m_strings2.push_back(std::string(MaxColumn * 2, ' '));
+    }
 
     // ダブルバッファの準備
     {
@@ -98,6 +102,17 @@ bool Screen::Initialize()
 
 bool Screen::Update()
 {
+    for (int row = 0; row < MaxRow; row++)
+    {
+        for (int column = 0; column < MaxColumn * 2; column++)
+        {
+            if (m_strings2[row][column] == ' ') continue;
+
+            m_strings[row][column] = m_strings2[row][column];
+            m_strings2[row][column] = ' ';
+        }
+    }
+
     for (auto iterator = m_lines.begin(); iterator != m_lines.end();)
     {
         const int Length = iterator->Length;
@@ -119,7 +134,7 @@ bool Screen::Update()
             continue;
         }
 
-        if (BottomRow < MaxRow) m_strings[BottomRow][Column] = 33 + rand() % 94;
+        if (BottomRow < MaxRow) m_strings2[BottomRow][Column] = 33 + rand() % 94;
 
         if (0 <= TopRow - 1) m_strings[TopRow - 1][Column] = ' ';
 
@@ -127,6 +142,7 @@ bool Screen::Update()
     }
 
     Sleep(WaitTime);
+    //std::cin.get();
 
     return m_loop;
 }
@@ -146,10 +162,15 @@ void Screen::Draw()
     SetBkMode(m_buffer, TRANSPARENT);
 
     SetTextColor(m_buffer, (int)Color::Green);
-
     for (int row = 0; row < MaxRow; row++)
     {
         TextOut(m_buffer, 5, row * FontHeight, m_strings[row].c_str(), m_strings[row].length());
+    }
+    
+    SetTextColor(m_buffer, (int)Color::Gray);
+    for (int row = 0; row < MaxRow; row++)
+    {
+        TextOut(m_buffer, 5, row * FontHeight, m_strings2[row].c_str(), m_strings2[row].length());
     }
 }
 

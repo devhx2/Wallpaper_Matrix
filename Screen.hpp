@@ -44,7 +44,7 @@ private:
         int Length;
     };
 
-    static const int ScreenWidth = 1920 * 2;
+    static const int ScreenWidth = 1920;
     static const int ScreenHeight = 1080;
     static const int FontHeight = 20;
     static const int FontWidth = FontHeight / 2;
@@ -59,6 +59,7 @@ private:
     HBITMAP m_bitmap;
     std::list<Line> m_lines;
     std::vector<std::string> m_strings;
+    std::vector<std::string> m_strings2;
 
     bool setWorkerW();
     bool getWallpaper();
