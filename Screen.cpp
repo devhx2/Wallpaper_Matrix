@@ -54,8 +54,6 @@ bool Screen::Initialize()
     }
     std::cout << m_path << std::endl;
 
-    std::cout << Font << std::endl;
-
     std::cout << "Ctrl Handle: ";
     if (!SetConsoleCtrlHandler((PHANDLER_ROUTINE)[](DWORD event) -> BOOL
     {
@@ -82,8 +80,9 @@ bool Screen::Initialize()
 
     srand((unsigned)time(NULL));
 
-    const int columns = ScreenWidth / FontWidth * 2;
-    for (int column = 0; column < columns; column++) m_lines.push_back(new Line(column));
+    for (int column = 0; column < MaxColumn; column++) m_lines.push_back(Line(column * 2));
+
+    for (int row = 0; row < MaxRow; row++) m_strings.push_back(std::string(MaxColumn * 2, ' '));
 
     // ダブルバッファの準備
     {
@@ -99,24 +98,33 @@ bool Screen::Initialize()
 
 bool Screen::Update()
 {
-    for (const auto& line : m_lines) line->Update(this);
-
-    m_lines.insert(m_lines.end(), m_insert.begin(), m_insert.end());
-    m_insert.clear();
-
-    m_lines.erase(std::remove_if(m_lines.begin(), m_lines.end(), [&](Line* line)
+    for (auto iterator = m_lines.begin(); iterator != m_lines.end();)
     {
-        if (std::find(m_delete.begin(), m_delete.end(), line) != m_delete.end())
+        const int Length = iterator->Length;
+        const int TopRow = ++iterator->Row;
+        const int BottomRow = TopRow + Length - 1;
+        const int Column = iterator->Column;
+
+        if (BottomRow < 0)
         {
-            delete line;
-            return true;
+            iterator++;
+            continue;
         }
-        return false;
-    }), m_lines.end());
 
-    m_delete.clear();
+        if (TopRow == 0) m_lines.push_back(Line(Column));
 
-    std::cout << m_lines.size() << std::endl;
+        if (MaxRow - 1 < TopRow)
+        {
+            iterator = m_lines.erase(iterator);
+            continue;
+        }
+
+        if (BottomRow < MaxRow) m_strings[BottomRow][Column] = 33 + rand() % 94;
+
+        if (0 <= TopRow - 1) m_strings[TopRow - 1][Column] = ' ';
+
+        iterator++;
+    }
 
     Sleep(WaitTime);
 
@@ -127,24 +135,39 @@ void Screen::Draw()
 {
     // フォントセット
     {
-        const HFONT font = CreateFont(FontHeight, FontWidth, 0, 0, FW_DONTCARE, FALSE, FALSE, FALSE,
+        const HFONT font = CreateFont(FontHeight, FontWidth, 0, 0,
+                                      FW_DONTCARE, FALSE, FALSE, FALSE,
                                       ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                      DRAFT_QUALITY, DEFAULT_PITCH, Font.c_str());
+                                      DRAFT_QUALITY, DEFAULT_PITCH, "Cascadia Mono SemiBold");
         SelectObject(m_buffer, font);
         DeleteObject(font);
     }
 
-    for (const auto& line : m_lines) line->Draw(this);
+    SetBkMode(m_buffer, TRANSPARENT);
+
+    SetTextColor(m_buffer, (int)Color::Green);
+
+    for (int row = 0; row < MaxRow; row++)
+    {
+        TextOut(m_buffer, 5, row * FontHeight, m_strings[row].c_str(), m_strings[row].length());
+    }
 }
 
 void Screen::Clear()
 {
-    drawRectangle(0, 0, ScreenWidth, ScreenHeight, Color::Black);
+    const HBRUSH brush = CreateSolidBrush((int)Color::Black);
+    const HBRUSH old = (HBRUSH)SelectObject(m_buffer, brush);
+
+    // brushの色で塗りつぶす
+    PatBlt(m_buffer, 0, 0, ScreenWidth, ScreenHeight, PATCOPY);
+
+    SelectObject(m_buffer, old);
+    DeleteObject(brush);
 }
 
 void Screen::Flip()
 {
-    HDC hdc = GetDC(m_workerW);
+    const HDC hdc = GetDC(m_workerW);
     BitBlt(hdc, 0, 0, ScreenWidth, ScreenHeight, m_buffer, 0, 0, SRCCOPY);
     ReleaseDC(m_workerW, hdc);
 }
@@ -183,72 +206,4 @@ bool Screen::setWallpaper(const std::string path)
     // デスクトップの壁紙を設定
     return SystemParametersInfo(SPI_SETDESKWALLPAPER, NULL, (PVOID)path.c_str(),
                                 SPIF_UPDATEINIFILE | SPIF_SENDCHANGE) == TRUE;
-}
-
-void Screen::drawText(const int x, const int y, const Color color, const std::string text)
-{
-    // 文字の後ろは塗りつぶさない
-    SetBkMode(m_buffer, TRANSPARENT);
-
-    SetTextColor(m_buffer, (int)color);
-
-    TextOut(m_buffer, x, y, text.c_str(), strlen(text.c_str()));
-}
-
-void Screen::drawRectangle(const int x, const int y, const int w, const int h, const Color color)
-{
-    HBRUSH brush = CreateSolidBrush((int)color);
-    HBRUSH old = (HBRUSH)SelectObject(m_buffer, brush);
-
-    // brushの色で塗りつぶす
-    PatBlt(m_buffer, x, y, w, h, PATCOPY);
-
-    SelectObject(m_buffer, old);
-    DeleteObject(brush);
-}
-
-Screen::Line::Line(int column)
-{
-    m_column = column;
-
-    // 画面外に上部に初期位置をセット
-    m_row = -8 /*- (rand() % 32)*/;
-    m_data = std::string(16/*4 + rand() % 32*/, ' ');
-}
-
-Screen::Line::~Line()
-{
-}
-
-void Screen::Line::Update(Screen* screen)
-{
-    m_row++;
-
-    const int length = m_data.length();
-    const int row = ScreenHeight / FontHeight;
-
-    if ((m_row - length + 1) > row) screen->m_delete.push_back(this);
-
-    for (int index = length - 1; index >= 1; index--)
-    {
-        m_data[index] = m_data[index - 1];
-    }
-
-    // Asciiコードの制御文字と空白を除いてランダム決定
-    m_data[0] = (33 + rand() % 94);
-
-    // 画面に初めて入ったときのみ後続を生成
-    if ((m_row - length + 1) == 0) screen->m_insert.push_back(new Line(m_column));
-}
-
-void Screen::Line::Draw(Screen* screen)
-{
-    const int length = m_data.length();
-    for (int index = 0; index < length; index++)
-    {
-        int x = 5 /*端の調整*/ + m_column * FontWidth * 2;
-        int y = (m_row - index) * FontHeight;
-        Color color = index == 0 ? Color::Gray : Color::Green;
-        screen->drawText(x, y, color, std::string(1, m_data[index]));
-    }
 }
