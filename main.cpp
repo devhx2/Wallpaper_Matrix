@@ -29,13 +29,25 @@ struct Line
     int Length;
 };
 
-const int ScreenWidth = 1920;
-const int ScreenHeight = 1080;
-const int FontHeight = 20;
-const int FontWidth = FontHeight / 2;
-const int MaxColumn = ScreenWidth / (FontWidth * 2);
-const int MaxRow = ScreenHeight / FontHeight;
-const int WaitTime = 1000 /*ms*/ / 20 /*fps*/;
+struct Size
+{
+    int Width;
+    int Height;
+};
+
+//const int ScreenWidth = 1920;
+//const int ScreenHeight = 1080;
+//const int FontHeight = 20;
+//const int FontWidth = FontHeight / 2;
+//const int MaxColumn = ScreenWidth / (FontWidth * 2);
+//const int MaxRow = ScreenHeight / FontHeight;
+//const int WaitTime = 1000 /*ms*/ / 20 /*fps*/;
+
+Size g_screenSize = { 1920, 1080 };
+Size g_FontSize = { 10, 20 };
+int g_columnNum = g_screenSize.Width / (g_FontSize.Width * 2);
+int g_rowNum = g_screenSize.Height / g_FontSize.Height;
+int g_waitTime = 1000 /*ms*/ / 20 /*fps*/;
 
 HWND g_workerW;
 HDC g_buffer;
@@ -70,7 +82,7 @@ int main()
             Update();
             Draw();
 
-            Sleep(WaitTime);
+            Sleep(g_waitTime);
         }
     });
 
@@ -107,9 +119,9 @@ bool Initialize()
 
 void Update()
 {
-    for (int row = 0; row < MaxRow; row++)
+    for (int row = 0; row < g_rowNum; row++)
     {
-        for (int column = 0; column < MaxColumn * 2; column++)
+        for (int column = 0; column < g_columnNum * 2; column++)
         {
             if (g_strings2[row][column] == ' ') continue;
 
@@ -133,13 +145,13 @@ void Update()
 
         if (TopRow == 0) g_lines.push_back(Line(Column));
 
-        if (MaxRow - 1 < TopRow)
+        if (g_rowNum - 1 < TopRow)
         {
             iterator = g_lines.erase(iterator);
             continue;
         }
 
-        if (BottomRow < MaxRow) g_strings2[BottomRow][Column] = 33 + rand() % 94;
+        if (BottomRow < g_rowNum) g_strings2[BottomRow][Column] = 33 + rand() % 94;
 
         if (0 <= TopRow - 1) g_strings[TopRow - 1][Column] = ' ';
 
@@ -154,14 +166,14 @@ void Draw()
         const HBRUSH brush = CreateSolidBrush(RGB(0, 0, 0));
         const HBRUSH old = (HBRUSH)SelectObject(g_buffer, brush);
 
-        PatBlt(g_buffer, 0, 0, ScreenWidth, ScreenHeight, PATCOPY);
+        PatBlt(g_buffer, 0, 0, g_screenSize.Width, g_screenSize.Height, PATCOPY);
 
         SelectObject(g_buffer, old);
         DeleteObject(brush);
     }
     // フォントセット
     {
-        const HFONT font = CreateFont(FontHeight, FontWidth, 0, 0,
+        const HFONT font = CreateFont(g_FontSize.Height, g_FontSize.Width, 0, 0,
                                       FW_DONTCARE, FALSE, FALSE, FALSE,
                                       ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                       DRAFT_QUALITY, DEFAULT_PITCH, "Cascadia Mono SemiBold");
@@ -173,21 +185,21 @@ void Draw()
         SetBkMode(g_buffer, TRANSPARENT);
 
         SetTextColor(g_buffer, RGB(19, 161, 14));
-        for (int row = 0; row < MaxRow; row++)
+        for (int row = 0; row < g_rowNum; row++)
         {
-            TextOut(g_buffer, 5, row * FontHeight, g_strings[row].c_str(), g_strings[row].length());
+            TextOut(g_buffer, 5, row * g_FontSize.Height, g_strings[row].c_str(), g_strings[row].length());
         }
 
         SetTextColor(g_buffer, RGB(192, 192, 192));
-        for (int row = 0; row < MaxRow; row++)
+        for (int row = 0; row < g_rowNum; row++)
         {
-            TextOut(g_buffer, 5, row * FontHeight, g_strings2[row].c_str(), g_strings2[row].length());
+            TextOut(g_buffer, 5, row * g_FontSize.Height, g_strings2[row].c_str(), g_strings2[row].length());
         }
     }
     // ダブルバッファを入れ替え
     {
         const HDC hdc = GetDC(g_workerW);
-        BitBlt(hdc, 0, 0, ScreenWidth, ScreenHeight, g_buffer, 0, 0, SRCCOPY);
+        BitBlt(hdc, 0, 0, g_screenSize.Width, g_screenSize.Height, g_buffer, 0, 0, SRCCOPY);
         ReleaseDC(g_workerW, hdc);
     }
 }
@@ -265,7 +277,7 @@ bool InitDoubleBuffer()
 {
     const HDC hdc = GetDC(g_workerW);
 
-    g_bitmap = CreateCompatibleBitmap(hdc, ScreenWidth, ScreenHeight);
+    g_bitmap = CreateCompatibleBitmap(hdc, g_screenSize.Width, g_screenSize.Height);
     g_buffer = CreateCompatibleDC(0);
 
     SelectObject(g_buffer, g_bitmap);
@@ -303,12 +315,12 @@ bool InitStrings()
 {
     srand((unsigned)time(nullptr));
 
-    for (int column = 0; column < MaxColumn; column++) g_lines.push_back(Line(column * 2));
+    for (int column = 0; column < g_columnNum; column++) g_lines.push_back(Line(column * 2));
 
-    for (int row = 0; row < MaxRow; row++)
+    for (int row = 0; row < g_rowNum; row++)
     {
-        g_strings.push_back(std::string(MaxColumn * 2, ' '));
-        g_strings2.push_back(std::string(MaxColumn * 2, ' '));
+        g_strings.push_back(std::string(g_columnNum * 2, ' '));
+        g_strings2.push_back(std::string(g_columnNum * 2, ' '));
     }
 
     return true;
