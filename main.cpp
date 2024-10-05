@@ -64,12 +64,11 @@ int main()
     {
         while (true)
         {
+            CalcParam();
             Update();
             Draw();
 
             Sleep(g_waitTime);
-
-            CalcParam();
         }
     });
 
@@ -144,22 +143,17 @@ void CalcParam()
         static RECT old{ 0, 0, 0, 0 }, now;
         GetClientRect(g_workerW, &now);
 
-        int ow = old.right - old.left;
-        int oh = old.bottom - old.top;
-        int nw = now.right - now.left;
-        int nh = now.bottom - now.top;
+        const int OldWidth = old.right - old.left;
+        const int OldHeight = old.bottom - old.top;
+        const int NowWidth = now.right - now.left;
+        const int NowHeight = now.bottom - now.top;
         
-        if (ow == nw && oh == nh) return;
+        if (OldWidth == NowWidth && OldHeight == NowHeight) return;
 
-        g_screenSize.Width = nw;
-        g_screenSize.Height = nh;
+        g_screenSize.Width = NowWidth;
+        g_screenSize.Height = NowHeight;
         g_columnNum = g_screenSize.Width / (g_FontSize.Width * 2);
         g_rowNum = g_screenSize.Height / g_FontSize.Height;
-
-        std::cout << "g_screenSize.Width  " << g_screenSize.Width << std::endl;
-        std::cout << "g_screenSize.Height " << g_screenSize.Height << std::endl;
-        std::cout << "g_columnNum         " << g_columnNum << std::endl;
-        std::cout << "g_rowNum            " << g_rowNum << std::endl;
 
         old = now;
     }
