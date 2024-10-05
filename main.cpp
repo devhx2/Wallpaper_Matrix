@@ -33,20 +33,20 @@ struct Size
     int Height;
 };
 
-Size g_screenSize/* = { 1920, 1080 }*/;
-Size g_FontSize = { 10, 20 };
-int g_columnNum/* = g_screenSize.Width / (g_FontSize.Width * 2)*/;
-int g_rowNum/* = g_screenSize.Height / g_FontSize.Height*/;
-int g_waitTime = 1000 /*ms*/ / 50 /*fps*/;
+Size g_screenSize;
+Size g_fontSize;
+int g_columnNum;
+int g_rowNum;
+int g_waitTime;
 
 HWND g_workerW;
 HDC g_buffer;
 HBITMAP g_bitmap;
-HANDLE g_console;
 std::string g_path;
 std::list<Line> g_lines;
 std::vector<std::string> g_strings;
 std::vector<std::string> g_strings2;
+COLORREF g_color = RGB(19, 161, 14);
 
 bool Initialize();
 void CalcParam();
@@ -72,7 +72,16 @@ int main()
         }
     });
 
+    std::future<void> console = std::async([]()
+    {
+        while (true)
+        {
+            Sleep(1000 /*ms*/ / 20 /*fps*/);
+        }
+    });
+
     wallpaper.get();
+    console.get();
 
     return EXIT_SUCCESS;
 }
@@ -82,13 +91,13 @@ bool Initialize()
     // 壁紙の描画用ウィンドウハンドルを取得
     {
         // デスクトップ画面を管理するウィンドウを取得
-        const HWND hwnd = GetShellWindow();
+        const HWND Hwnd = GetShellWindow();
 
         // メッセージを送ってWorkerWを生成させる
-        SendMessageTimeout(hwnd, 0x052C, 0, 0, SMTO_NORMAL, 1000, nullptr);
+        SendMessageTimeoutA(Hwnd, 0x052C, 0, 0, SMTO_NORMAL, 1000, nullptr);
 
         // WorkerWは複数あるが壁紙の描画用はデスクトップ管理ウィンドウの次のWorkerW
-        g_workerW = GetNextWindow(hwnd, GW_HWNDPREV);
+        g_workerW = GetWindow(Hwnd, GW_HWNDPREV);
 
         if (g_workerW == nullptr)
         {
@@ -100,7 +109,7 @@ bool Initialize()
     {
         char path[MAX_PATH]{};
 
-        if (!SystemParametersInfo(SPI_GETDESKWALLPAPER, MAX_PATH, (PVOID)path, 0))
+        if (!SystemParametersInfoA(SPI_GETDESKWALLPAPER, MAX_PATH, (PVOID)path, 0))
         {
             std::cerr << "Error : Get Wallpaper Path" << std::endl;
             return false;
@@ -130,8 +139,31 @@ bool Initialize()
     }
     // コンソール準備
     {
-        const HWND hwnd = GetConsoleWindow();
-        SetWindowText(hwnd, "Wallpaper_Matrix");
+        SetConsoleTitleA("Wallpaper Matrix");
+
+        const HANDLE InputHandle = GetStdHandle(STD_INPUT_HANDLE);
+        const HANDLE OutputHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+
+        //マウスクリックによる描画停止を回避
+        {
+            DWORD mode;
+            GetConsoleMode(InputHandle, &mode);
+            SetConsoleMode(InputHandle, mode & ~ENABLE_QUICK_EDIT_MODE);
+        }
+        // カーソルを非表示
+        {
+            CONSOLE_CURSOR_INFO cursorInfo;
+            GetConsoleCursorInfo(OutputHandle, &cursorInfo);
+            cursorInfo.bVisible = FALSE;
+            SetConsoleCursorInfo(OutputHandle, &cursorInfo);
+        }
+        // ウィンドウサイズを設定
+        {
+            const short width = 64, height = 8;
+            const SMALL_RECT consoleSize = { 0, 0, width - 1, height - 1 };
+            SetConsoleWindowInfo(OutputHandle, TRUE, &consoleSize);
+            SetConsoleScreenBufferSize(OutputHandle, { width, height });
+        }
     }
     return true;
 }
@@ -140,26 +172,28 @@ void CalcParam()
 {
     // パラメータの算出
     {
-        static RECT old{ 0, 0, 0, 0 }, now;
-        GetClientRect(g_workerW, &now);
+        static RECT oldScreenSize{ 0, 0, 0, 0 }, nowScreenSize;
+        GetClientRect(g_workerW, &nowScreenSize);
 
-        const int OldWidth = old.right - old.left;
-        const int OldHeight = old.bottom - old.top;
-        const int NowWidth = now.right - now.left;
-        const int NowHeight = now.bottom - now.top;
+        const int OldWidth = oldScreenSize.right - oldScreenSize.left;
+        const int OldHeight = oldScreenSize.bottom - oldScreenSize.top;
+        const int NowWidth = nowScreenSize.right - nowScreenSize.left;
+        const int NowHeight = nowScreenSize.bottom - nowScreenSize.top;
         
         if (OldWidth == NowWidth && OldHeight == NowHeight) return;
 
+        g_fontSize = { 10, 20 };
         g_screenSize.Width = NowWidth;
         g_screenSize.Height = NowHeight;
-        g_columnNum = g_screenSize.Width / (g_FontSize.Width * 2);
-        g_rowNum = g_screenSize.Height / g_FontSize.Height;
+        g_columnNum = g_screenSize.Width / (g_fontSize.Width * 2);
+        g_rowNum = g_screenSize.Height / g_fontSize.Height;
+        g_waitTime = 1000 /*ms*/ / 50 /*fps*/;
 
-        old = now;
+        oldScreenSize = nowScreenSize;
     }
     // ダブルバッファの準備
     {
-        const HDC hdc = GetDC(g_workerW);
+        const HDC Hdc = GetDC(g_workerW);
 
         if (g_buffer != nullptr)
         {
@@ -173,11 +207,11 @@ void CalcParam()
             g_bitmap = nullptr;
         }
 
-        g_bitmap = CreateCompatibleBitmap(hdc, g_screenSize.Width, g_screenSize.Height);
+        g_bitmap = CreateCompatibleBitmap(Hdc, g_screenSize.Width, g_screenSize.Height);
         g_buffer = CreateCompatibleDC(0);
 
         SelectObject(g_buffer, g_bitmap);
-        ReleaseDC(g_workerW, hdc);
+        ReleaseDC(g_workerW, Hdc);
     }
     // 文字列バッファの準備
     {
@@ -242,44 +276,44 @@ void Draw()
 {
     // 背景の塗りつぶし
     {
-        const HBRUSH brush = CreateSolidBrush(RGB(0, 0, 0));
-        const HBRUSH old = (HBRUSH)SelectObject(g_buffer, brush);
+        const HBRUSH Brush = CreateSolidBrush(RGB(0, 0, 0));
+        const HBRUSH OldBrush = (HBRUSH)SelectObject(g_buffer, Brush);
 
         PatBlt(g_buffer, 0, 0, g_screenSize.Width, g_screenSize.Height, PATCOPY);
 
-        SelectObject(g_buffer, old);
-        DeleteObject(brush);
+        SelectObject(g_buffer, OldBrush);
+        DeleteObject(Brush);
     }
     // 文字列の描画
     {
-        const HFONT font = CreateFont(g_FontSize.Height, g_FontSize.Width,
+        const HFONT Font = CreateFontA(g_fontSize.Height, g_fontSize.Width,
                                       0, 0, FW_DONTCARE, FALSE, FALSE, FALSE,
                                       ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                       DRAFT_QUALITY, DEFAULT_PITCH, "Cascadia Mono SemiBold");
-        const HFONT old = (HFONT)SelectObject(g_buffer, font);
+        const HFONT OldFont = (HFONT)SelectObject(g_buffer, Font);
 
         SetBkMode(g_buffer, TRANSPARENT);
 
-        SetTextColor(g_buffer, RGB(19, 161, 14));
+        SetTextColor(g_buffer, g_color);
         for (int row = 0; row < g_rowNum; row++)
         {
-            TextOut(g_buffer, 5, row * g_FontSize.Height, g_strings[row].c_str(), g_strings[row].length());
+            TextOutA(g_buffer, 5, row * g_fontSize.Height, g_strings[row].c_str(), g_strings[row].length());
         }
 
         SetTextColor(g_buffer, RGB(192, 192, 192));
         for (int row = 0; row < g_rowNum; row++)
         {
-            TextOut(g_buffer, 5, row * g_FontSize.Height, g_strings2[row].c_str(), g_strings2[row].length());
+            TextOutA(g_buffer, 5, row * g_fontSize.Height, g_strings2[row].c_str(), g_strings2[row].length());
         }
 
-        SelectObject(g_buffer, old);
-        DeleteObject(font);
+        SelectObject(g_buffer, OldFont);
+        DeleteObject(Font);
     }
     // ダブルバッファを入れ替え
     {
-        const HDC hdc = GetDC(g_workerW);
-        BitBlt(hdc, 0, 0, g_screenSize.Width, g_screenSize.Height, g_buffer, 0, 0, SRCCOPY);
-        ReleaseDC(g_workerW, hdc);
+        const HDC Hdc = GetDC(g_workerW);
+        BitBlt(Hdc, 0, 0, g_screenSize.Width, g_screenSize.Height, g_buffer, 0, 0, SRCCOPY);
+        ReleaseDC(g_workerW, Hdc);
     }
 }
 
@@ -291,7 +325,7 @@ bool Finalize()
 
     // デスクトップの壁紙を設定
     {
-        if (!SystemParametersInfo(SPI_SETDESKWALLPAPER, NULL,
+        if (!SystemParametersInfoA(SPI_SETDESKWALLPAPER, NULL,
             (PVOID)g_path.c_str(), SPIF_UPDATEINIFILE | SPIF_SENDCHANGE))
         {
             std::cerr << "Error : Set Wallpaper Path" << std::endl;
