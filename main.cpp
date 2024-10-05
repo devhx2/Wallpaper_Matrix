@@ -33,10 +33,10 @@ struct Size
     int Height;
 };
 
-Size g_screenSize = { 1920, 1080 };
+Size g_screenSize/* = { 1920, 1080 }*/;
 Size g_FontSize = { 10, 20 };
-int g_columnNum = g_screenSize.Width / (g_FontSize.Width * 2);
-int g_rowNum = g_screenSize.Height / g_FontSize.Height;
+int g_columnNum/* = g_screenSize.Width / (g_FontSize.Width * 2)*/;
+int g_rowNum/* = g_screenSize.Height / g_FontSize.Height*/;
 int g_waitTime = 1000 /*ms*/ / 50 /*fps*/;
 
 HWND g_workerW;
@@ -64,11 +64,12 @@ int main()
     {
         while (true)
         {
-            CalcParam();
             Update();
             Draw();
 
             Sleep(g_waitTime);
+
+            CalcParam();
         }
     });
 
@@ -148,21 +149,35 @@ void CalcParam()
         int nw = now.right - now.left;
         int nh = now.bottom - now.top;
         
-        if ((ow == nw && oh == nh)) return;
-
-        std::cout << nw << std::endl;
-        std::cout << nh << std::endl;
+        if (ow == nw && oh == nh) return;
 
         g_screenSize.Width = nw;
         g_screenSize.Height = nh;
         g_columnNum = g_screenSize.Width / (g_FontSize.Width * 2);
         g_rowNum = g_screenSize.Height / g_FontSize.Height;
 
+        std::cout << "g_screenSize.Width  " << g_screenSize.Width << std::endl;
+        std::cout << "g_screenSize.Height " << g_screenSize.Height << std::endl;
+        std::cout << "g_columnNum         " << g_columnNum << std::endl;
+        std::cout << "g_rowNum            " << g_rowNum << std::endl;
+
         old = now;
     }
     // ダブルバッファの準備
     {
         const HDC hdc = GetDC(g_workerW);
+
+        if (g_buffer != nullptr)
+        {
+            DeleteDC(g_buffer);
+            g_buffer = nullptr;
+        }
+
+        if (g_bitmap != nullptr)
+        {
+            DeleteObject(g_bitmap);
+            g_bitmap = nullptr;
+        }
 
         g_bitmap = CreateCompatibleBitmap(hdc, g_screenSize.Width, g_screenSize.Height);
         g_buffer = CreateCompatibleDC(0);
@@ -174,8 +189,11 @@ void CalcParam()
     {
         srand((unsigned)time(nullptr));
 
+        g_lines.clear();
         for (int column = 0; column < g_columnNum; column++) g_lines.push_back(Line(column * 2));
 
+        g_strings.clear();
+        g_strings2.clear();
         for (int row = 0; row < g_rowNum; row++)
         {
             g_strings.push_back(std::string(g_columnNum * 2, ' '));
@@ -238,17 +256,14 @@ void Draw()
         SelectObject(g_buffer, old);
         DeleteObject(brush);
     }
-    // フォントを設定
+    // 文字列の描画
     {
         const HFONT font = CreateFont(g_FontSize.Height, g_FontSize.Width,
                                       0, 0, FW_DONTCARE, FALSE, FALSE, FALSE,
                                       ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                       DRAFT_QUALITY, DEFAULT_PITCH, "Cascadia Mono SemiBold");
-        SelectObject(g_buffer, font);
-        DeleteObject(font);
-    }
-    // 文字列の描画
-    {
+        const HFONT old = (HFONT)SelectObject(g_buffer, font);
+
         SetBkMode(g_buffer, TRANSPARENT);
 
         SetTextColor(g_buffer, RGB(19, 161, 14));
@@ -262,6 +277,9 @@ void Draw()
         {
             TextOut(g_buffer, 5, row * g_FontSize.Height, g_strings2[row].c_str(), g_strings2[row].length());
         }
+
+        SelectObject(g_buffer, old);
+        DeleteObject(font);
     }
     // ダブルバッファを入れ替え
     {
@@ -273,9 +291,9 @@ void Draw()
 
 bool Finalize()
 {
-    if (g_buffer) DeleteDC(g_buffer);
+    if (g_buffer != nullptr) DeleteDC(g_buffer);
 
-    if (g_bitmap) DeleteObject(g_bitmap);
+    if (g_bitmap != nullptr) DeleteObject(g_bitmap);
 
     // デスクトップの壁紙を設定
     {
