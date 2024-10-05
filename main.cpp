@@ -1,6 +1,4 @@
-﻿#include <comdef.h>
-#include <wbemidl.h>
-#include <windows.h>
+﻿#include <windows.h>
 
 #include <cstdlib>
 #include <ctime>
@@ -35,19 +33,11 @@ struct Size
     int Height;
 };
 
-//const int ScreenWidth = 1920;
-//const int ScreenHeight = 1080;
-//const int FontHeight = 20;
-//const int FontWidth = FontHeight / 2;
-//const int MaxColumn = ScreenWidth / (FontWidth * 2);
-//const int MaxRow = ScreenHeight / FontHeight;
-//const int WaitTime = 1000 /*ms*/ / 20 /*fps*/;
-
 Size g_screenSize = { 1920, 1080 };
 Size g_FontSize = { 10, 20 };
 int g_columnNum = g_screenSize.Width / (g_FontSize.Width * 2);
 int g_rowNum = g_screenSize.Height / g_FontSize.Height;
-int g_waitTime = 1000 /*ms*/ / 20 /*fps*/;
+int g_waitTime = 1000 /*ms*/ / 50 /*fps*/;
 
 HWND g_workerW;
 HDC g_buffer;
@@ -59,26 +49,22 @@ std::vector<std::string> g_strings;
 std::vector<std::string> g_strings2;
 
 bool Initialize();
+void CalcParam();
 void Update();
 void Draw();
 bool Finalize();
-
-bool InitWorkerW();
-bool GetWallpaper();
-bool SetWallpaper();
-bool InitDoubleBuffer();
-bool RegisterEvent();
-bool InitStrings();
-bool InitConsole();
 
 int main()
 {
     if (!Initialize()) return EXIT_FAILURE;
 
+    CalcParam();
+
     std::future<void> wallpaper = std::async([]()
     {
         while (true)
         {
+            CalcParam();
             Update();
             Draw();
 
@@ -86,35 +72,116 @@ int main()
         }
     });
 
-    std::future<void> ui = std::async([]()
-    {
-        while (true)
-        {
-            std::cout << "x\n";
-
-            Sleep(1000);
-        }
-    });
-
     wallpaper.get();
-    ui.get();
 
     return EXIT_SUCCESS;
 }
 
 bool Initialize()
 {
-    if (!InitWorkerW())      return false;
+    // 壁紙の描画用ウィンドウハンドルを取得
+    {
+        // デスクトップ画面を管理するウィンドウを取得
+        const HWND hwnd = GetShellWindow();
 
-    if (!GetWallpaper())     return false;
+        // メッセージを送ってWorkerWを生成させる
+        SendMessageTimeout(hwnd, 0x052C, 0, 0, SMTO_NORMAL, 1000, nullptr);
 
-    if (!InitDoubleBuffer()) return false;
+        // WorkerWは複数あるが壁紙の描画用はデスクトップ管理ウィンドウの次のWorkerW
+        g_workerW = GetNextWindow(hwnd, GW_HWNDPREV);
 
-    if (!RegisterEvent())    return false;
+        if (g_workerW == nullptr)
+        {
+            std::cerr << "Error : WorkerW" << std::endl;
+            return false;
+        }
+    }
+    // デスクトップの壁紙を取得
+    {
+        char path[MAX_PATH]{};
 
-    if (!InitStrings())      return false;
+        if (!SystemParametersInfo(SPI_GETDESKWALLPAPER, MAX_PATH, (PVOID)path, 0))
+        {
+            std::cerr << "Error : Get Wallpaper Path" << std::endl;
+            return false;
+        }
 
+        g_path = path;
+    }
+    // イベントを登録
+    {
+        if (!SetConsoleCtrlHandler((PHANDLER_ROUTINE)[](DWORD event) -> BOOL
+        {
+            switch (event)
+            {
+                case CTRL_C_EVENT:
+                case CTRL_CLOSE_EVENT:
+                case CTRL_SHUTDOWN_EVENT:
+                    Finalize();
+                    return FALSE;
+                default:
+                    return FALSE;
+            }
+        }, TRUE))
+        {
+            std::cerr << "Error : Ctrl Handle" << std::endl;
+            return false;
+        }
+    }
+    // コンソール準備
+    {
+        const HWND hwnd = GetConsoleWindow();
+        SetWindowText(hwnd, "Wallpaper_Matrix");
+    }
     return true;
+}
+
+void CalcParam()
+{
+    // パラメータの算出
+    {
+        static RECT old{ 0, 0, 0, 0 }, now;
+        GetClientRect(g_workerW, &now);
+
+        int ow = old.right - old.left;
+        int oh = old.bottom - old.top;
+        int nw = now.right - now.left;
+        int nh = now.bottom - now.top;
+        
+        if ((ow == nw && oh == nh)) return;
+
+        std::cout << nw << std::endl;
+        std::cout << nh << std::endl;
+
+        g_screenSize.Width = nw;
+        g_screenSize.Height = nh;
+        g_columnNum = g_screenSize.Width / (g_FontSize.Width * 2);
+        g_rowNum = g_screenSize.Height / g_FontSize.Height;
+
+        old = now;
+    }
+    // ダブルバッファの準備
+    {
+        const HDC hdc = GetDC(g_workerW);
+
+        g_bitmap = CreateCompatibleBitmap(hdc, g_screenSize.Width, g_screenSize.Height);
+        g_buffer = CreateCompatibleDC(0);
+
+        SelectObject(g_buffer, g_bitmap);
+        ReleaseDC(g_workerW, hdc);
+    }
+    // 文字列バッファの準備
+    {
+        srand((unsigned)time(nullptr));
+
+        for (int column = 0; column < g_columnNum; column++) g_lines.push_back(Line(column * 2));
+
+        for (int row = 0; row < g_rowNum; row++)
+        {
+            g_strings.push_back(std::string(g_columnNum * 2, ' '));
+            g_strings2.push_back(std::string(g_columnNum * 2, ' '));
+        }
+    }
 }
 
 void Update()
@@ -171,10 +238,10 @@ void Draw()
         SelectObject(g_buffer, old);
         DeleteObject(brush);
     }
-    // フォントセット
+    // フォントを設定
     {
-        const HFONT font = CreateFont(g_FontSize.Height, g_FontSize.Width, 0, 0,
-                                      FW_DONTCARE, FALSE, FALSE, FALSE,
+        const HFONT font = CreateFont(g_FontSize.Height, g_FontSize.Width,
+                                      0, 0, FW_DONTCARE, FALSE, FALSE, FALSE,
                                       ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                       DRAFT_QUALITY, DEFAULT_PITCH, "Cascadia Mono SemiBold");
         SelectObject(g_buffer, font);
@@ -206,137 +273,19 @@ void Draw()
 
 bool Finalize()
 {
-    if (g_buffer)
+    if (g_buffer) DeleteDC(g_buffer);
+
+    if (g_bitmap) DeleteObject(g_bitmap);
+
+    // デスクトップの壁紙を設定
     {
-        DeleteDC(g_buffer);
-        g_buffer = nullptr;
-    }
-    if (g_bitmap)
-    {
-        DeleteObject(g_bitmap);
-        g_bitmap = nullptr;
-    }
-
-    SetWallpaper();
-
-    return true;
-}
-
-// 壁紙の描画用ウィンドウハンドルを取得
-bool InitWorkerW()
-{
-    // デスクトップ画面を管理するウィンドウを取得
-    const HWND hwnd = GetShellWindow();
-
-    // メッセージを送ってWorkerWを生成させる
-    SendMessageTimeout(hwnd, 0x052C, 0, 0, SMTO_NORMAL, 1000, nullptr);
-
-    // WorkerWは複数あるが壁紙の描画用はデスクトップ管理ウィンドウの次のWorkerW
-    g_workerW = GetNextWindow(hwnd, GW_HWNDPREV);
-
-    if (g_workerW == nullptr)
-    {
-        std::cerr << "Error : WorkerW" << std::endl;
-        return false;
-    }
-
-    return true;
-}
-
-// デスクトップの壁紙を取得
-bool GetWallpaper()
-{
-    char path[MAX_PATH]{};
-
-    if (!SystemParametersInfo(SPI_GETDESKWALLPAPER, MAX_PATH, (PVOID)path, 0))
-    {
-        std::cerr << "Error : Get Wallpaper Path" << std::endl;
-        return false;
-    }
-
-    g_path = path;
-
-    return true;
-}
-
-// デスクトップの壁紙を設定
-bool SetWallpaper()
-{
-    if (!SystemParametersInfo(SPI_SETDESKWALLPAPER, NULL,
-        (PVOID)g_path.c_str(), SPIF_UPDATEINIFILE | SPIF_SENDCHANGE))
-    {
-        std::cerr << "Error : Set Wallpaper Path" << std::endl;
-        return false;
-    }
-
-    return true;
-}
-
-// ダブルバッファの準備
-bool InitDoubleBuffer()
-{
-    const HDC hdc = GetDC(g_workerW);
-
-    g_bitmap = CreateCompatibleBitmap(hdc, g_screenSize.Width, g_screenSize.Height);
-    g_buffer = CreateCompatibleDC(0);
-
-    SelectObject(g_buffer, g_bitmap);
-    ReleaseDC(g_workerW, hdc);
-
-    return true;
-}
-
-// イベントを登録
-bool RegisterEvent()
-{
-    if (!SetConsoleCtrlHandler((PHANDLER_ROUTINE)[](DWORD event) -> BOOL
-    {
-        switch (event)
+        if (!SystemParametersInfo(SPI_SETDESKWALLPAPER, NULL,
+            (PVOID)g_path.c_str(), SPIF_UPDATEINIFILE | SPIF_SENDCHANGE))
         {
-            case CTRL_C_EVENT:
-            case CTRL_CLOSE_EVENT:
-            case CTRL_SHUTDOWN_EVENT:
-                Finalize();
-                return FALSE;
-            default:
-                return FALSE;
+            std::cerr << "Error : Set Wallpaper Path" << std::endl;
+            return false;
         }
-    }, TRUE))
-    {
-        std::cerr << "Error : Ctrl Handle" << std::endl;
-        return false;
     }
-
-    return true;
-}
-
-// 文字列バッファの準備
-bool InitStrings()
-{
-    srand((unsigned)time(nullptr));
-
-    for (int column = 0; column < g_columnNum; column++) g_lines.push_back(Line(column * 2));
-
-    for (int row = 0; row < g_rowNum; row++)
-    {
-        g_strings.push_back(std::string(g_columnNum * 2, ' '));
-        g_strings2.push_back(std::string(g_columnNum * 2, ' '));
-    }
-
-    return true;
-}
-
-// コンソール準備
-bool InitConsole()
-{
-    const HWND hwnd = GetConsoleWindow();
-    SetWindowText(hwnd, "Wallpaper_Matrix");
-
-    // 標準出力ハンドルを取得
-    g_console = GetStdHandle(STD_OUTPUT_HANDLE);
-
-    // カーソル位置をセット
-    SetConsoleCursorPosition(g_console, { 20,20 });
 
     return true;
 }
