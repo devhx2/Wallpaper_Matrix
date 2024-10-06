@@ -1,10 +1,11 @@
 ﻿#include <windows.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <ctime>
-#include <future>
 #include <iostream>
 #include <list>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -13,13 +14,10 @@ struct Line
     Line(int column)
     {
         Column = column;
-
         Length = 4 + rand() % 16;
-
         // 画面外に上部に初期位置をセット
         Row = -1 * (Length + 4 + rand() % 16);
     }
-
     ~Line() {};
 
     int Column;
@@ -37,8 +35,6 @@ Size g_screenSize;
 Size g_fontSize;
 int g_columnNum;
 int g_rowNum;
-int g_waitTime;
-
 HWND g_workerW;
 HDC g_buffer;
 HBITMAP g_bitmap;
@@ -46,7 +42,17 @@ std::string g_path;
 std::list<Line> g_lines;
 std::vector<std::string> g_strings;
 std::vector<std::string> g_strings2;
-COLORREF g_color = RGB(19, 161, 14);
+
+enum Mode
+{
+    Alphabet,
+    Binary,
+};
+
+Mode g_mode = Mode::Alphabet;
+int g_speed = 7;
+COLORREF g_fgColor = RGB(19, 161, 14);
+COLORREF g_bgColor = RGB(0, 0, 0);
 
 bool Initialize();
 void CalcParam();
@@ -54,34 +60,62 @@ void Update();
 void Draw();
 bool Finalize();
 
-int main()
+int main(int argc, char* argv[])
 {
     if (!Initialize()) return EXIT_FAILURE;
 
+    // オプションを設定
+    for (int i = 0; i < argc; i++)
+    {
+        std::string str = argv[i];
+
+        // 文字を0,1に限定
+        if (str == "/bin") g_mode = Mode::Binary;
+
+        // 落下速度を1~9で指定
+        if (str == "/spd" && i + 1 < argc)
+        {
+            int spd = std::stoi(argv[i + 1]);
+            g_speed = std::clamp(spd, 1, 9);
+        }
+
+        // 前景色を16進数で指定
+        if (str == "/fgc" && i + 1 < argc)
+        {
+            int fgc = std::stoi(argv[i + 1], nullptr, 16);
+            int r = (fgc >> 16) & 0xff;
+            int g = (fgc >> 8) & 0xff;
+            int b = fgc & 0xff;
+            g_fgColor = RGB(r, g, b);
+        }
+
+        // 後景色を16進数で指定
+        if (str == "/bgc" && i + 1 < argc)
+        {
+            int bgc = std::stoi(argv[i + 1], nullptr, 16);
+            int r = (bgc >> 16) & 0xff;
+            int g = (bgc >> 8) & 0xff;
+            int b = bgc & 0xff;
+            g_bgColor = RGB(r, g, b);
+        }
+    }
+
     CalcParam();
 
-    std::future<void> wallpaper = std::async([]()
+    int count = 0;
+
+    while (true)
     {
-        while (true)
+        count = (count + 1) % (10/*max*/ - g_speed);
+        if (count == 0)
         {
             CalcParam();
             Update();
             Draw();
-
-            Sleep(g_waitTime);
         }
-    });
 
-    std::future<void> console = std::async([]()
-    {
-        while (true)
-        {
-            Sleep(1000 /*ms*/ / 20 /*fps*/);
-        }
-    });
-
-    wallpaper.get();
-    console.get();
+        Sleep(1000/*ms*/ / 100);
+    }
 
     return EXIT_SUCCESS;
 }
@@ -137,34 +171,6 @@ bool Initialize()
             return false;
         }
     }
-    // コンソール準備
-    {
-        SetConsoleTitleA("Wallpaper Matrix");
-
-        const HANDLE InputHandle = GetStdHandle(STD_INPUT_HANDLE);
-        const HANDLE OutputHandle = GetStdHandle(STD_OUTPUT_HANDLE);
-
-        //マウスクリックによる描画停止を回避
-        {
-            DWORD mode;
-            GetConsoleMode(InputHandle, &mode);
-            SetConsoleMode(InputHandle, mode & ~ENABLE_QUICK_EDIT_MODE);
-        }
-        // カーソルを非表示
-        {
-            CONSOLE_CURSOR_INFO cursorInfo;
-            GetConsoleCursorInfo(OutputHandle, &cursorInfo);
-            cursorInfo.bVisible = FALSE;
-            SetConsoleCursorInfo(OutputHandle, &cursorInfo);
-        }
-        // ウィンドウサイズを設定
-        {
-            const short width = 64, height = 8;
-            const SMALL_RECT consoleSize = { 0, 0, width - 1, height - 1 };
-            SetConsoleWindowInfo(OutputHandle, TRUE, &consoleSize);
-            SetConsoleScreenBufferSize(OutputHandle, { width, height });
-        }
-    }
     return true;
 }
 
@@ -187,7 +193,6 @@ void CalcParam()
         g_screenSize.Height = NowHeight;
         g_columnNum = g_screenSize.Width / (g_fontSize.Width * 2);
         g_rowNum = g_screenSize.Height / g_fontSize.Height;
-        g_waitTime = 1000 /*ms*/ / 50 /*fps*/;
 
         oldScreenSize = nowScreenSize;
     }
@@ -264,7 +269,11 @@ void Update()
             continue;
         }
 
-        if (BottomRow < g_rowNum) g_strings2[BottomRow][Column] = 33 + rand() % 94;
+        if (BottomRow < g_rowNum)
+        {
+            if (g_mode == Mode::Alphabet) g_strings2[BottomRow][Column] = 33 + rand() % 94;
+            else g_strings2[BottomRow][Column] = 48 + rand() % 2;
+        }
 
         if (0 <= TopRow - 1) g_strings[TopRow - 1][Column] = ' ';
 
@@ -276,7 +285,7 @@ void Draw()
 {
     // 背景の塗りつぶし
     {
-        const HBRUSH Brush = CreateSolidBrush(RGB(0, 0, 0));
+        const HBRUSH Brush = CreateSolidBrush(g_bgColor);
         const HBRUSH OldBrush = (HBRUSH)SelectObject(g_buffer, Brush);
 
         PatBlt(g_buffer, 0, 0, g_screenSize.Width, g_screenSize.Height, PATCOPY);
@@ -294,7 +303,7 @@ void Draw()
 
         SetBkMode(g_buffer, TRANSPARENT);
 
-        SetTextColor(g_buffer, g_color);
+        SetTextColor(g_buffer, g_fgColor);
         for (int row = 0; row < g_rowNum; row++)
         {
             TextOutA(g_buffer, 5, row * g_fontSize.Height, g_strings[row].c_str(), g_strings[row].length());
