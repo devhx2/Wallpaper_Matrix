@@ -10,9 +10,11 @@ wmatrix
 ![wmatrix](https://github.com/devhx2/Wallpaper_Matrix/blob/main/img/wmatrix.gif)
 - 落下スピード変更<br>
 1 (min) ~ 9 (max) で変更可能<br>
+初期値は 7
 ```bat
 wmatrix /spd 1
 ```
+![wmatrix_spd_1](https://github.com/devhx2/Wallpaper_Matrix/blob/main/img/wmatrix_spd_1.gif)
 - 文字色変更<br>
 16進数表記(RGB)で変更可能<br>
 ```bat
