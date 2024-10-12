@@ -7,7 +7,7 @@ Windows用壁紙アニメーションアプリ<br>
 ```bat
 wmatrix
 ```
-![wmatrix](.\img\wmatrix.gif)
+![wmatrix](https://github.com/devhx2/Wallpaper_Matrix/blob/main/img/wmatrix.gif)
 - 落下スピード変更<br>
 1 (min) ~ 9 (max) で変更可能<br>
 ```bat
