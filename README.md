@@ -18,8 +18,9 @@ wmatrix /spd 1
 - 文字色変更<br>
 16進数表記(RGB)で変更可能<br>
 ```bat
-wmatrix /fgc 00ff00
+wmatrix /fgc 0000ff
 ```
+![wmatrix_fgc_00f](https://github.com/devhx2/Wallpaper_Matrix/blob/main/img/wmatrix_fgc_00f.gif)
 - 背景色変更<br>
 16進数表記(RGB)で変更可能<br>
 ```bat
