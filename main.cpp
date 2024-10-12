@@ -114,7 +114,7 @@ int main(int argc, char* argv[])
             Draw();
         }
 
-        Sleep(1000/*ms*/ / 100);
+        Sleep(10/*ms*/);
     }
 
     return EXIT_SUCCESS;
