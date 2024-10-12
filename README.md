@@ -24,8 +24,9 @@ wmatrix /fgc 0000ff
 - 背景色変更<br>
 16進数表記(RGB)で変更可能<br>
 ```bat
-wmatrix /bgc 00ff00
+wmatrix /bgc cccccc
 ```
+![wmatrix_bgc_cccccc](https://github.com/devhx2/Wallpaper_Matrix/blob/main/img/wmatrix_bgc_cccccc.gif)
 - 文字をバイナリに変更<br>
 フラグで変更<br>
 ```bat
